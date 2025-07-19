@@ -29,15 +29,19 @@ public class CorsConfig implements WebMvcConfigurer {
             // Local development
             "http://localhost:9898", 
             "http://localhost:3000",
+            "http://localhost:3001",
             "http://localhost:6060",
             "http://localhost:6565",
             "http://127.0.0.1:9898",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001",
             // Production servers
             "http://183.82.114.29:9898",
             "http://183.82.114.29:6868", 
             "http://183.82.114.29:6060",
             "http://183.82.114.29:6565",
             "http://183.82.114.29:3000",
+            "http://183.82.114.29:3001",
             // File protocol
             "file://"
         };

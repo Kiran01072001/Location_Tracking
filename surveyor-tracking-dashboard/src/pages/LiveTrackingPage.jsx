@@ -16,6 +16,7 @@ import SurveyorTable from '../components/SurveyorTable';
 import SurveyorFormModal from '../components/SurveyorFormModal';
 import { Paper, Button, Typography, Box, Card, CardContent, IconButton } from '@mui/material';
 import { Snackbar, Alert } from '@mui/material';
+import { useDynamicConfig } from '../hooks/useDynamicConfig';
 
 // Configuration matching your backend exactly
 const config = {
@@ -127,6 +128,9 @@ const OSRMRoute = ({ coordinates, color = '#6366f1' }) => {
 };
 
 const LiveTrackingPage = () => {
+  // Dynamic configuration hook
+  const dynamicConfig = useDynamicConfig();
+  
   // State management
   const [surveyors, setSurveyors] = useState([]);
   const [statusMap, setStatusMap] = useState({});
@@ -311,27 +315,30 @@ const groupedSurveyors = useMemo(() => {
     } catch (err) {
       console.error('Failed to load surveyors:', err);
       
-      // Fallback to demo data with Indian surveyors
+      // Fallback to demo data with dynamic cities and projects
+      const cities = dynamicConfig.getDropdownOptions('cities');
+      const projects = dynamicConfig.getDropdownOptions('projects');
+      
       const mockSurveyors = [
         {
           id: 'SUR009',
           name: 'Kiran',
-          city: 'Hyderabad',
-          projectName: 'Hyderabad Metro Survey',
+          city: cities[0] || 'Hyderabad',
+          projectName: projects[0] || 'PTMS',
           username: 'kiran_sur'
         },
         {
           id: 'SUR010',
           name: 'Rajesh Kumar',
-          city: 'Mumbai',
-          projectName: 'Mumbai Infrastructure',
+          city: cities[1] || 'Mumbai',
+          projectName: projects[1] || 'Survey',
           username: 'rajesh_kumar'
         },
         {
           id: 'SUR011',
           name: 'Priya Sharma',
-          city: 'Delhi',
-          projectName: 'Delhi Metro Extension',
+          city: cities[2] || 'Delhi',
+          projectName: projects[2] || 'Mapping',
           username: 'priya_sharma'
         }
       ];
@@ -463,9 +470,11 @@ const groupedSurveyors = useMemo(() => {
     if (!stompClientRef.current || !stompClientRef.current.connected) {
       console.error('WebSocket not connected - using demo live tracking');
       
-      // Demo tracking using Hyderabad coordinates (matching your data)
-      let demoLat = 17.4010007 + (Math.random() - 0.5) * 0.001;
-      let demoLng = 78.5643879 + (Math.random() - 0.5) * 0.001;
+      // Demo tracking using dynamic map center coordinates
+      const mapConfig = dynamicConfig.getMapConfig();
+      const defaultCenter = mapConfig.defaultCenter || [17.4010007, 78.5643879]; // Hyderabad default
+      let demoLat = defaultCenter[0] + (Math.random() - 0.5) * 0.001;
+      let demoLng = defaultCenter[1] + (Math.random() - 0.5) * 0.001;
       
       const updateDemoLocation = () => {
         demoLat += (Math.random() - 0.5) * 0.0001;
@@ -678,9 +687,10 @@ const fetchHistoricalRoute = useCallback(async () => {
       };
     }
     
-    // Default center (Hyderabad, India - matching your data)
+    // Default center from dynamic configuration
+    const mapConfig = dynamicConfig.getMapConfig();
     return {
-      center: [17.4010007, 78.5643879],
+      center: mapConfig.defaultCenter || [17.4010007, 78.5643879], // Hyderabad default
       positions: []
     };
   };
@@ -764,7 +774,7 @@ const fetchHistoricalRoute = useCallback(async () => {
           </select>
         </div>
 
-        {/* 🔽 Filter by City */}
+        {/* 🔽 Filter by City - DYNAMIC */}
         <div style={{ minWidth: '150px', flexShrink: 0, position: 'relative', zIndex: 1000 }}>
           <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151', fontSize: '0.9rem' }}>
             🔽 Filter by City
@@ -785,14 +795,15 @@ const fetchHistoricalRoute = useCallback(async () => {
             }}
           >
             <option value="">All Cities</option>
-            <option value="Hyderabad">Hyderabad</option>
-            <option value="Mumbai">Mumbai</option>
-            <option value="Delhi">Delhi</option>
-            <option value="Bangalore">Bangalore</option>
+            {dynamicConfig.getDropdownOptions('cities').map(cityOption => (
+              <option key={cityOption} value={cityOption}>
+                {cityOption}
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* 🔽 Filter by Project */}
+        {/* 🔽 Filter by Project - DYNAMIC */}
         <div style={{ minWidth: '150px', flexShrink: 0, position: 'relative', zIndex: 1000 }}>
           <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151', fontSize: '0.9rem' }}>
             🔽 Filter by Project
@@ -813,10 +824,11 @@ const fetchHistoricalRoute = useCallback(async () => {
             }}
           >
             <option value="">All Projects</option>
-            <option value="PTMS">PTMS</option>
-            <option value="Survey">Survey</option>
-            <option value="Mapping">Mapping</option>
-            <option value="Inspection">Inspection</option>
+            {dynamicConfig.getDropdownOptions('projects').map(projectOption => (
+              <option key={projectOption} value={projectOption}>
+                {projectOption}
+              </option>
+            ))}
           </select>
         </div>
 
