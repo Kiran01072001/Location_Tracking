@@ -135,8 +135,8 @@ const LiveTrackingPage = () => {
   const [surveyors, setSurveyors] = useState([]);
   const [statusMap, setStatusMap] = useState({});
   const [selectedSurveyor, setSelectedSurveyor] = useState('');
-  const [fromDate, setFromDate] = useState(new Date(new Date().setHours(8, 0, 0, 0))); // 8:00 AM
-  const [toDate, setToDate] = useState(new Date(new Date().setHours(20, 30, 0, 0))); // 8:30 PM
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
 
   const [isLiveTracking, setIsLiveTracking] = useState(false);
   const [historicalRoute, setHistoricalRoute] = useState([]);
@@ -223,9 +223,11 @@ const filteredSurveyors = useMemo(() => {
   return surveyors.filter(surveyor => {
     const searchTerm = surveyorSearch.toLowerCase();
     return (
-      surveyor.id.toLowerCase().includes(searchTerm) ||
+      (surveyor.id && surveyor.id.toLowerCase().includes(searchTerm)) ||
       (surveyor.name && surveyor.name.toLowerCase().includes(searchTerm)) ||
-      (surveyor.username && surveyor.username.toLowerCase().includes(searchTerm))
+      (surveyor.username && surveyor.username.toLowerCase().includes(searchTerm)) ||
+      (surveyor.city && surveyor.city.toLowerCase().includes(searchTerm)) ||
+      (surveyor.projectName && surveyor.projectName.toLowerCase().includes(searchTerm))
     );
   });
 }, [surveyors, surveyorSearch]);
@@ -468,39 +470,7 @@ const groupedSurveyors = useMemo(() => {
   // Subscribe to live updates for specific surveyor
   const subscribeToLiveUpdates = useCallback((surveyorId) => {
     if (!stompClientRef.current || !stompClientRef.current.connected) {
-      console.error('WebSocket not connected - using demo live tracking');
-      
-      // Demo tracking using dynamic map center coordinates
-      const mapConfig = dynamicConfig.getMapConfig();
-      const defaultCenter = mapConfig.defaultCenter || [17.4010007, 78.5643879]; // Hyderabad default
-      let demoLat = defaultCenter[0] + (Math.random() - 0.5) * 0.001;
-      let demoLng = defaultCenter[1] + (Math.random() - 0.5) * 0.001;
-      
-      const updateDemoLocation = () => {
-        demoLat += (Math.random() - 0.5) * 0.0001;
-        demoLng += (Math.random() - 0.5) * 0.0001;
-        
-        const demoLocation = {
-          lat: demoLat,
-          lng: demoLng,
-          timestamp: new Date(),
-          surveyorId: surveyorId
-        };
-        
-        setLiveLocation(demoLocation);
-        setLiveTrail(prev => {
-          const newTrail = [...prev, [demoLocation.lat, demoLocation.lng]];
-          return newTrail.slice(-50);
-        });
-      };
-      
-      updateDemoLocation();
-      
-      if (liveLocationIntervalRef.current) {
-        clearInterval(liveLocationIntervalRef.current);
-      }
-      
-      liveLocationIntervalRef.current = setInterval(updateDemoLocation, config.liveUpdateInterval);
+      setError('WebSocket not connected. Live tracking unavailable.');
       return;
     }
 
@@ -511,31 +481,31 @@ const groupedSurveyors = useMemo(() => {
     const topic = `/topic/location/${surveyorId}`;
     console.log('Subscribing to WebSocket topic:', topic);
 
-    // In the subscribeToLiveUpdates function (around line 480):
-subscriptionRef.current = stompClientRef.current.subscribe(topic, (message) => {
-  try {
-    console.log('Received WebSocket message:', message.body);
-    const locationData = JSON.parse(message.body);
-    
-    const newLocation = {
-      lat: locationData.latitude,
-      lng: locationData.longitude,
-      timestamp: new Date(locationData.timestamp), // Already in UTC from database
-      surveyorId: locationData.surveyorId
-    };
-    
-    console.log('Processed live location:', newLocation);
-    setLiveLocation(newLocation);
-    
-    setLiveTrail(prev => {
-      const newTrail = [...prev, [newLocation.lat, newLocation.lng]];
-      return newTrail.slice(-50);
-    });
-  } catch (err) {
-    console.error('Error parsing live location data:', err);
-  }
-});
+    subscriptionRef.current = stompClientRef.current.subscribe(topic, (message) => {
+      try {
+        console.log('Received WebSocket message:', message.body);
+        const locationData = JSON.parse(message.body);
 
+        const newLocation = {
+          lat: locationData.latitude,
+          lng: locationData.longitude,
+          timestamp: new Date(locationData.timestamp), // Already in UTC from database
+          surveyorId: locationData.surveyorId
+        };
+
+        console.log('Processed live location:', newLocation);
+        setLiveLocation(newLocation);
+        setLiveTrail(prev => {
+          // Only add if different from last point
+          if (prev.length === 0 || prev[prev.length - 1][0] !== newLocation.lat || prev[prev.length - 1][1] !== newLocation.lng) {
+            return [...prev, [newLocation.lat, newLocation.lng]];
+          }
+          return prev;
+        });
+      } catch (err) {
+        console.error('Error parsing live location data:', err);
+      }
+    });
   }, []);
 
   // Start live tracking
@@ -544,7 +514,7 @@ subscriptionRef.current = stompClientRef.current.subscribe(topic, (message) => {
       setError('Please select a surveyor first');
       return;
     }
-    
+
     console.log('Starting live tracking for surveyor:', selectedSurveyor);
     setError('');
     setLiveLocation(null);
@@ -553,7 +523,7 @@ subscriptionRef.current = stompClientRef.current.subscribe(topic, (message) => {
 
     if (!stompClientRef.current || !stompClientRef.current.connected) {
       connectWebSocket();
-      
+
       const checkConnection = setInterval(() => {
         if (stompClientRef.current && stompClientRef.current.connected) {
           clearInterval(checkConnection);
@@ -561,14 +531,11 @@ subscriptionRef.current = stompClientRef.current.subscribe(topic, (message) => {
           setIsLiveTracking(true);
         }
       }, 100);
-      
+
       setTimeout(() => {
         clearInterval(checkConnection);
         if (!stompClientRef.current || !stompClientRef.current.connected) {
-          console.log('WebSocket failed, starting demo live tracking');
-          subscribeToLiveUpdates(selectedSurveyor);
-          setIsLiveTracking(true);
-          setError('Demo mode: Live tracking simulation active');
+          setError('WebSocket connection failed. Live tracking unavailable.');
         }
       }, 5000);
     } else {
@@ -580,15 +547,10 @@ subscriptionRef.current = stompClientRef.current.subscribe(topic, (message) => {
   // Stop live tracking
   const stopLiveTracking = useCallback(() => {
     setIsLiveTracking(false);
-    
+
     if (subscriptionRef.current) {
       subscriptionRef.current.unsubscribe();
       subscriptionRef.current = null;
-    }
-
-    if (liveLocationIntervalRef.current) {
-      clearInterval(liveLocationIntervalRef.current);
-      liveLocationIntervalRef.current = null;
     }
 
     setLiveLocation(null);
@@ -705,96 +667,134 @@ const fetchHistoricalRoute = useCallback(async () => {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #667ea0, #764%)',
-      padding: '2rem',
-      fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+      padding: 0,
+      fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+      overflow: 'hidden', // Remove scrollbars
     }}>
-      {/* 1⃣ Header Section (Top Bar) */}
+      {/* Header Section (Top Bar) */}
       <div style={{
         background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
         color: '#fff',
         borderRadius: '16px',
-        padding: '1.5rem 2rem',
+        padding: '1rem 2rem',
         marginBottom: '1.5rem',
-        textAlign: 'center',
-        boxShadow: '0 8px 32px rgba(30, 64, 175, 0.15)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: '1rem',
+        justifyContent: 'center', // Center horizontally
+        boxShadow: '0 8px 32px rgba(30, 64, 175, 0.15)',
+        position: 'relative',
+        minHeight: '80px', // Ensure enough height for vertical centering
       }}>
-        <span style={{ fontSize: '2rem', lineHeight: 1 }}>📍</span>
-        <span style={{ fontWeight: 700, fontSize: '2rem', letterSpacing: '0.5px' }}>
-          Live Tracking Dashboard
-        </span>
+        {/* Left: Socket and Total Surveyors */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', position: 'absolute', left: '2rem', top: 0, bottom: 0, height: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '1rem' }}>
+            <span>{connectionStatus === 'Connected' ? '🟢' : '🔴'}</span>
+            <span>Socket: {connectionStatus}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '1rem' }}>
+            <span>📊</span>
+            <span>Total Surveyors: {surveyors.length}</span>
+          </div>
+        </div>
+        {/* Center: Dashboard Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, margin: 'auto', justifyContent: 'center', height: '100%', pointerEvents: 'none' }}>
+          <span style={{ fontSize: '2rem', lineHeight: 1 }}>📍</span>
+          <span style={{ fontWeight: 700, fontSize: '2rem', letterSpacing: '0.5px' }}>
+            Live Tracking Dashboard
+          </span>
+        </div>
+        {/* Right: Surveyors Button */}
+        <div style={{ position: 'absolute', right: '2rem', top: 0, bottom: 0, height: '100%', display: 'flex', alignItems: 'center' }}>
+          <button
+            onClick={openSurveyorManagement}
+            style={{
+              background: 'linear-gradient(90deg, #10b981 0%, #3b82f6 100%)',
+              color: '#fff',
+              border: '2px solid #fff',
+              borderRadius: '10px',
+              padding: '0.5rem 1.3rem',
+              fontWeight: '700',
+              fontSize: '1.05rem',
+              cursor: 'pointer',
+              boxShadow: '0 0 12px 2px rgba(16,185,129,0.25), 0 4px 16px rgba(59,130,246,0.18)',
+              transition: 'all 0.3s cubic-bezier(.4,2,.3,1)',
+              marginLeft: 'auto',
+              letterSpacing: '0.5px',
+            }}
+          >
+            🧑‍💼 Surveyors
+          </button>
+        </div>
       </div>
 
-      {/* 2️⃣ Filter & Control Panel (Below Header – Horizontal Layout) */}
+      {/* Filter & Control Panel (Below Header – Horizontal Layout) */}
       <div style={{
-        display: 'flex',
+        display: 'inline-flex',
         flexWrap: 'nowrap',
-        gap: '1rem',
-        marginBottom: '2rem',
-        padding: '1.5rem',
-        background: 'rgba(248, 250, 252, 0.8)',
-        borderRadius: '12px',
-        border: '1px solid rgba(59, 130, 246, 0.1)',
+        gap: '1.1rem',
+        marginBottom: '0.7rem',
+        padding: 0,
+        background: 'rgba(255, 255, 255, 0.98)',
+        borderRadius: 0,
+        border: '0.7px solid #d1d5db',
+        boxShadow: '0 2px 12px 0 rgba(59,130,246,0.06)',
         alignItems: 'center',
         position: 'relative',
         zIndex: 200,
-        overflowX: 'auto'
+        overflowX: 'visible',
+        boxSizing: 'border-box',
+        marginLeft: 0,
+        marginRight: 0,
       }}>
-        {/* 🔽 Tracking Surveyor */}
-        <div style={{ minWidth: '200px', flexShrink: 0, position: 'relative', zIndex: 1000 }}>
-          <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151', fontSize: '0.9rem' }}>
-            🔽 Tracking Surveyor
-          </label>
+        {/* Tracking Surveyor */}
+        <div style={{ minWidth: '170px', background: 'linear-gradient(135deg, #f0f4ff 0%, #e0f7fa 100%)', borderRadius: '13px', boxShadow: '0 4px 16px rgba(59,130,246,0.10)', border: '1.5px solid #3b82f6', marginRight: '0.7rem', marginLeft: 0, transition: 'box-shadow 0.2s, border 0.2s' }}>
           <select
             value={selectedSurveyor}
-            onChange={e => setSelectedSurveyor(e.target.value)}
+            onChange={e => {
+              const value = e.target.value;
+              setSelectedSurveyor(value);
+              const found = surveyors.find(s => s.id === value);
+              if (found) {
+                setCity(found.city || '');
+                setProject(found.projectName || '');
+              }
+            }}
             style={{
-              padding: '0.75rem 1rem',
+              padding: '0.5rem 1rem',
               borderRadius: '8px',
-              border: '2px solid #e5e7eb',
+              border: '1.5px solid #e5e7eb',
               width: '100%',
-              fontSize: '1rem',
+              fontSize: '1.05rem',
               background: '#ffffff',
               cursor: 'pointer',
-              position: 'relative',
-              zIndex: 1000
+              fontWeight: 500,
             }}
           >
-            <option value="">-- Select a surveyor --</option>
-            {surveyors
-              .filter(surveyor => surveyor.id && surveyor.id.startsWith('SUR'))
-              .map(surveyor => (
-                <option key={surveyor.id} value={surveyor.id}>
-                  {surveyor.name} ({surveyor.id}) {statusMap[surveyor.id] === 'Online' ? '🟢' : '🔴'}
-                </option>
-              ))}
+            <option value="">Tracking Surveyor</option>
+            {surveyors.map(surveyor => (
+              <option key={surveyor.id} value={surveyor.id}>
+                {surveyor.name} ({surveyor.id}) {statusMap[surveyor.id] === 'Online' ? '🟢' : '🔴'}
+              </option>
+            ))}
           </select>
         </div>
-
-        {/* 🔽 Filter by City - DYNAMIC */}
-        <div style={{ minWidth: '150px', flexShrink: 0, position: 'relative', zIndex: 1000 }}>
-          <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151', fontSize: '0.9rem' }}>
-            🔽 Filter by City
-          </label>
+        {/* Filter by City */}
+        <div style={{ minWidth: '120px', background: 'linear-gradient(135deg, #e0f7fa 0%, #f0f4ff 100%)', borderRadius: '13px', boxShadow: '0 4px 16px rgba(6,182,212,0.10)', border: '1.5px solid #06b6d4', marginRight: '0.7rem', transition: 'box-shadow 0.2s, border 0.2s' }}>
           <select
             value={city}
             onChange={e => setCity(e.target.value)}
             style={{
-              padding: '0.75rem 1rem',
+              padding: '0.5rem 1rem',
               borderRadius: '8px',
-              border: '2px solid #e5e7eb',
+              border: '1.5px solid #e5e7eb',
               width: '100%',
-              fontSize: '1rem',
+              fontSize: '1.05rem',
               background: '#ffffff',
               cursor: 'pointer',
-              position: 'relative',
-              zIndex: 1000
+              fontWeight: 500,
             }}
           >
-            <option value="">All Cities</option>
+            <option value="">Filter by City</option>
             {dynamicConfig.getDropdownOptions('cities').map(cityOption => (
               <option key={cityOption} value={cityOption}>
                 {cityOption}
@@ -802,28 +802,23 @@ const fetchHistoricalRoute = useCallback(async () => {
             ))}
           </select>
         </div>
-
-        {/* 🔽 Filter by Project - DYNAMIC */}
-        <div style={{ minWidth: '150px', flexShrink: 0, position: 'relative', zIndex: 1000 }}>
-          <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151', fontSize: '0.9rem' }}>
-            🔽 Filter by Project
-          </label>
+        {/* Filter by Project */}
+        <div style={{ minWidth: '120px', background: 'linear-gradient(135deg, #e0ffe0 0%, #f0f4ff 100%)', borderRadius: '13px', boxShadow: '0 4px 16px rgba(16,185,129,0.10)', border: '1.5px solid #10b981', marginRight: '0.7rem', transition: 'box-shadow 0.2s, border 0.2s' }}>
           <select
             value={project}
             onChange={e => setProject(e.target.value)}
             style={{
-              padding: '0.75rem 1rem',
+              padding: '0.5rem 1rem',
               borderRadius: '8px',
-              border: '2px solid #e5e7eb',
+              border: '1.5px solid #e5e7eb',
               width: '100%',
-              fontSize: '1rem',
+              fontSize: '1.05rem',
               background: '#ffffff',
               cursor: 'pointer',
-              position: 'relative',
-              zIndex: 1000
+              fontWeight: 500,
             }}
           >
-            <option value="">All Projects</option>
+            <option value="">Filter by Project</option>
             {dynamicConfig.getDropdownOptions('projects').map(projectOption => (
               <option key={projectOption} value={projectOption}>
                 {projectOption}
@@ -831,149 +826,77 @@ const fetchHistoricalRoute = useCallback(async () => {
             ))}
           </select>
         </div>
-
-        {/* 📅 From Date */}
-        <div style={{ minWidth: '180px', flexShrink: 0, position: 'relative', zIndex: 99999 }}>
-          <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151', fontSize: '0.9rem' }}>
-            📅 From Date
-          </label>
+        {/* From Date */}
+        <div style={{ minWidth: '140px', background: 'linear-gradient(135deg, #f3e8ff 0%, #e0f2fe 100%)', borderRadius: '13px', boxShadow: '0 4px 16px rgba(99,102,241,0.10)', border: '1.5px solid #6366f1', marginRight: '0.7rem', transition: 'box-shadow 0.2s, border 0.2s' }}>
           <DatePicker
             selected={fromDate}
             onChange={date => setFromDate(date)}
             showTimeSelect
-            dateFormat="MMM dd, yyyy h:mm aa"
+            dateFormat="MMM d, yyyy h:mm aa"
+            placeholderText="From Date & Time"
             className="date-picker"
-            popperPlacement="bottom"
-            popperClassName="datepicker-popper-override"
+            style={{ width: '100%', background: 'transparent', border: 'none', fontWeight: 600, fontSize: '1.05rem', color: '#222', padding: '0.3rem 0.5rem', borderRadius: '10px', outline: 'none', transition: 'box-shadow 0.2s, border 0.2s' }}
+            isClearable
+            readOnly={false}
+            disabled={false}
             withPortal
-            style={{
-              width: '100%',
-              padding: '0.75rem 1rem',
-              borderRadius: '8px',
-              border: '2px solid #e5e7eb',
-              fontSize: '1rem',
-              zIndex: 99999
-            }}
+            popperPlacement="bottom-end"
           />
         </div>
-
-        {/* 📅 To Date */}
-        <div style={{ minWidth: '180px', flexShrink: 0, position: 'relative', zIndex: 99999 }}>
-          <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151', fontSize: '0.9rem' }}>
-            📅 To Date
-          </label>
+        {/* To Date */}
+        <div style={{ minWidth: '140px', background: 'linear-gradient(135deg, #f3e8ff 0%, #e0f2fe 100%)', borderRadius: '13px', boxShadow: '0 4px 16px rgba(99,102,241,0.10)', border: '1.5px solid #6366f1', marginRight: '0.7rem', transition: 'box-shadow 0.2s, border 0.2s' }}>
           <DatePicker
             selected={toDate}
             onChange={date => setToDate(date)}
             showTimeSelect
-            dateFormat="MMM dd, yyyy h:mm aa"
+            dateFormat="MMM d, yyyy h:mm aa"
+            placeholderText="To Date & Time"
             className="date-picker"
-            popperPlacement="bottom"
-            popperClassName="datepicker-popper-override"
+            style={{ width: '100%', background: 'transparent', border: 'none', fontWeight: 600, fontSize: '1.05rem', color: '#222', padding: '0.3rem 0.5rem', borderRadius: '10px', outline: 'none', transition: 'box-shadow 0.2s, border 0.2s' }}
+            isClearable
+            readOnly={false}
+            disabled={false}
             withPortal
-            style={{
-              width: '100%',
-              padding: '0.75rem 1rem',
-              borderRadius: '8px',
-              border: '2px solid #e5e7eb',
-              fontSize: '1rem',
-              zIndex: 99999
-            }}
+            popperPlacement="bottom-end"
           />
         </div>
-
-        {/* Action Buttons - Right-aligned */}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '1rem', flexShrink: 0 }}>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: '1.1rem', background: 'none', border: 'none', boxShadow: 'none', padding: 0, marginRight: 0 }}>
           <button
             onClick={startLiveTracking}
-            disabled={!selectedSurveyor}
             style={{
-              background: selectedSurveyor ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' : '#9ca3af',
+              background: isLiveTracking ? '#ef4444' : '#10b981',
               color: '#fff',
               border: 'none',
-              borderRadius: '12px',
-              padding: '0.75rem 1.5rem',
-              fontWeight: '600',
-              fontSize: '1rem',
-              cursor: selectedSurveyor ? 'pointer' : 'not-allowed',
-              boxShadow: selectedSurveyor ? '0 8px 25px rgba(16, 185, 129, 0.3)' : 'none',
-              transition: 'all 0.3s ease',
-              whiteSpace: 'nowrap'
+              borderRadius: '9px',
+              padding: '0.55rem 1.5rem',
+              fontWeight: 700,
+              fontSize: '1.13rem',
+              cursor: 'pointer',
+              boxShadow: isLiveTracking ? '0 2px 8px rgba(239,68,68,0.18)' : '0 2px 8px rgba(16,185,129,0.13)',
+              marginRight: '0.18rem',
+              transition: 'background 0.2s',
             }}
           >
-            ⚡ Start Live Tracking {surveyors.length === 0 ? '(No Surveyors)' : selectedSurveyor ? '(Ready)' : '(Select Surveyor)'}
+            Live
           </button>
-
           <button
             onClick={fetchHistoricalRoute}
-            disabled={!selectedSurveyor || loading}
             style={{
-              background: selectedSurveyor && !loading ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' : '#9ca3af',
+              background: '#6366f1',
               color: '#fff',
               border: 'none',
-              borderRadius: '12px',
-              padding: '0.75rem 1.5rem',
-              fontWeight: '600',
-              fontSize: '1rem',
-              cursor: selectedSurveyor && !loading ? 'pointer' : 'not-allowed',
-              boxShadow: selectedSurveyor && !loading ? '0 8px 25px rgba(99, 102, 241, 0.3)' : 'none',
-              transition: 'all 0.3s ease'
-            }}
-          >
-            📘 Fetch Historical {surveyors.length === 0 ? '(No Surveyors)' : selectedSurveyor ? '(Ready)' : '(Select Surveyor)'}
-          </button>
-          {/* Modern error message for no location data */}
-
-          <button
-            onClick={openSurveyorManagement}
-            style={{
-              background: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '0.75rem 1.5rem',
-              fontWeight: '600',
-              fontSize: '1rem',
+              borderRadius: '9px',
+              padding: '0.55rem 1.5rem',
+              fontWeight: 700,
+              fontSize: '1.13rem',
               cursor: 'pointer',
-              boxShadow: '0 8px 25px rgba(59, 130, 246, 0.3)',
-              transition: 'all 0.3s ease'
+              boxShadow: '0 2px 8px rgba(99,102,241,0.13)',
+              transition: 'background 0.2s',
             }}
           >
-            🧑‍💼 Surveyors
+            Historical
           </button>
-        </div>
-
-        {/* 🔌 WebSocket Status */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.5rem 1rem',
-          background: connectionStatus === 'Connected' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
-          borderRadius: '8px',
-          border: connectionStatus === 'Connected' ? '1px solid rgba(16,185,129,0.15)' : '1px solid rgba(239,68,68,0.15)',
-          color: connectionStatus === 'Connected' ? '#10b981' : '#dc2626',
-          fontSize: '0.95rem',
-          fontWeight: 600
-        }}>
-          <span>{connectionStatus === 'Connected' ? '🟢' : '🔴'}</span>
-          <span>WS: {connectionStatus}</span>
-        </div>
-        {/* 📊 Surveyor Count Debug */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.5rem 1rem',
-          background: surveyors.length > 0 ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
-          borderRadius: '8px',
-          border: surveyors.length > 0 ? '1px solid rgba(16,185,129,0.15)' : '1px solid rgba(239,68,68,0.15)',
-          color: surveyors.length > 0 ? '#10b981' : '#dc2626',
-          fontSize: '0.95rem',
-          fontWeight: 600
-        }}>
-          <span>📊</span>
-          <span>Surveyors: {surveyors.length}</span>
         </div>
       </div>
       {/* Error Display - Floating on Left Side */}
@@ -998,18 +921,21 @@ const fetchHistoricalRoute = useCallback(async () => {
       {/* 🗺️ Main Map Area (Leaflet Map) */}
       <div style={{
         position: 'relative',
-        height: 'calc(100vh - 300px)',
-        borderRadius: '16px',
+        width: '100vw',
+        height: 'calc(100vh - 200px)', // adjust 200px to match your header+filter bar height
+        margin: 0,
+        padding: 0,
+        borderRadius: '0',
         overflow: 'hidden',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-        border: '1px solid rgba(59, 130, 246, 0.1)',
-        zIndex: 1
+        boxShadow: 'none',
+        border: 'none',
+        zIndex: 1,
       }}>
         {/* Map Area - Clean without floating controls */}
         <MapContainer
           center={center}
           zoom={13}
-          style={{ height: '100%', width: '100%' }}
+          style={{ height: '100%', width: '100%', borderRadius: '0', margin: 0, padding: 0 }}
           zoomControl={true}
           attributionControl={true}
         >
@@ -1084,59 +1010,6 @@ const fetchHistoricalRoute = useCallback(async () => {
           {/* Auto-fit bounds */}
           <MapBounds positions={positions} />
 
-          {/* 🧾 Surveyor Details Panel (Floating Right Panel on Map) */}
-          {selectedSurveyor && (() => {
-            const selectedSurveyorData = surveyors.find(s => s.id === selectedSurveyor);
-            const name = selectedSurveyorData?.name || selectedSurveyor;
-            const isOnline = statusMap[selectedSurveyor] === 'Online';
-            return (
-              <div style={{
-                position: 'absolute',
-                top: '100px',
-                right: '20px',
-                background: 'rgba(255, 255, 255, 0.95)',
-                borderRadius: '12px',
-                padding: '1.5rem',
-                border: '1px solid rgba(59, 130, 246, 0.1)',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
-                minWidth: '280px',
-                zIndex: 10
-              }}>
-                <h3 style={{ margin: '0 0 1rem 0', color: '#374151', fontWeight: 700 }}>
-                  🧾 Surveyor Details
-                </h3>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <strong>Name / ID:</strong> {name} / {selectedSurveyor}
-                </div>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <strong>Live Status:</strong> {isOnline ? '🟢 Online' : '🔴 Offline'}
-                </div>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <strong>Project:</strong> {selectedSurveyorData?.projectName || 'N/A'}
-                </div>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <strong>City:</strong> {selectedSurveyorData?.city || 'N/A'}
-                </div>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <strong>Username:</strong> {selectedSurveyorData?.username || 'N/A'}
-                </div>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <strong>Email:</strong> {selectedSurveyorData?.email || 'N/A'}
-                </div>
-                {liveLocation && (
-                  <>
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <strong>Last Update:</strong> 0 secs ago
-                    </div>
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <strong>Coordinates:</strong> {liveLocation.lat.toFixed(5)}, {liveLocation.lng.toFixed(5)}
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })()}
-
           {/* 💡 Ready to Track Overlay */}
           {!selectedSurveyor && (
             <div style={{
@@ -1161,8 +1034,64 @@ const fetchHistoricalRoute = useCallback(async () => {
             </div>
           )}
         </MapContainer>
+        {/* 🧾 Surveyor Details Panel (Floating Right Panel on Map) - now absolutely positioned in map area */}
+        {selectedSurveyor && (() => {
+          const selectedSurveyorData = surveyors.find(s => s.id === selectedSurveyor);
+          const name = selectedSurveyorData?.name || selectedSurveyor;
+          const isOnline = statusMap[selectedSurveyor] === 'Online';
+          return (
+            <div style={{
+              position: 'absolute',
+              top: '24px',
+              right: '24px',
+              background: 'rgba(255,255,255,0.35)',
+              borderRadius: '14px',
+              padding: '1.2rem 1.5rem',
+              border: '1.5px solid rgba(59,130,246,0.18)',
+              boxShadow: '0 4px 24px rgba(30,64,175,0.10)',
+              minWidth: '260px',
+              zIndex: 200,
+              backdropFilter: 'blur(8px)',
+              color: '#222',
+              fontWeight: 500,
+              fontSize: '1.05rem',
+              pointerEvents: 'auto'
+            }}>
+              <h3 style={{ margin: '0 0 1rem 0', color: '#374151', fontWeight: 700 }}>
+                🧾 Surveyor Details
+              </h3>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Name / ID:</strong> {name} / {selectedSurveyor}
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Live Status:</strong> {isOnline ? '🟢 Online' : '🔴 Offline'}
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Project:</strong> {selectedSurveyorData?.projectName || 'N/A'}
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>City:</strong> {selectedSurveyorData?.city || 'N/A'}
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Username:</strong> {selectedSurveyorData?.username || 'N/A'}
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Email:</strong> {selectedSurveyorData?.email || 'N/A'}
+              </div>
+              {liveLocation && (
+                <>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <strong>Last Update:</strong> 0 secs ago
+                  </div>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <strong>Coordinates:</strong> {liveLocation.lat.toFixed(5)}, {liveLocation.lng.toFixed(5)}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
       </div>
-
       {/* Custom CSS */}
       <style>{`
         .date-picker {
@@ -1173,21 +1102,18 @@ const fetchHistoricalRoute = useCallback(async () => {
           font-size: 1rem !important;
           background: #ffffff !important;
         }
-        
         .date-picker:focus {
           border-color: #3b82f6 !important;
           outline: none !important;
           box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
         }
       `}</style>
-      {/* Surveyor Management Modal */}
       <SurveyorFormModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSave={handleSaveSuccess}
         surveyor={editingSurveyor}
       />
-      {/* Surveyor Management Modal Overlay */}
       {surveyorManagementOpen && (
         <div style={{
           position: 'fixed',
@@ -1227,15 +1153,31 @@ const fetchHistoricalRoute = useCallback(async () => {
               borderBottom: '1px solid rgba(255, 255, 255,0.1)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ fontSize: '2rem' }}>📍</div>
-                <h2 style={{
-                  fontSize: '1.8rem',
-                  fontWeight: 700,
-                  margin: 0,
-                  letterSpacing: '0.5px'
-                }}>
-                  Surveyor Management
-                </h2>
+                {/* Search Bar replaces the title */}
+                <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '0.2rem 0.8rem', boxShadow: '0 2px 8px rgba(30,64,175,0.08)' }}>
+                  <span style={{ fontSize: '1.5rem', color: '#fff', marginRight: '0.5rem', filter: 'drop-shadow(0 0 2px #000)' }}>🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Search surveyors by name, ID, username, city, or project..."
+                    value={surveyorSearch}
+                    onChange={e => setSurveyorSearch(e.target.value)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: '#fff',
+                      fontSize: '1.2rem',
+                      width: '260px',
+                      fontWeight: 500,
+                    }}
+                  />
+                  <style>{`
+                    input[type=\"text\"]::placeholder {
+                      color: rgba(255,255,255,0.85);
+                      opacity: 1;
+                    }
+                  `}</style>
+                </div>
               </div>
               <div style={{ display: 'flex', gap: '1em', alignItems: 'center' }}>
                 <button
@@ -1255,8 +1197,8 @@ const fetchHistoricalRoute = useCallback(async () => {
                     alignItems: 'center',
                     gap: '0.5rem'
                   }}
-                  onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-                  onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
+                  onMouseOver={e => e.target.style.transform = 'translateY(-2px)'}
+                  onMouseOut={e => e.target.style.transform = 'translateY(0)'}
                 >
                   <span style={{ fontSize: '1.1rem' }}>➕</span>
                   ADD SURVEYOR
@@ -1278,14 +1220,13 @@ const fetchHistoricalRoute = useCallback(async () => {
                     justifyContent: 'center',
                     transition: 'all 0.3s ease'
                   }}
-                  onMouseOver={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}
-                  onMouseOut={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
+                  onMouseOver={e => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}
+                  onMouseOut={e => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
                 >
                   ✕
                 </button>
               </div>
             </div>
-            
             {/* Content */}
             <div style={{
               padding: '2rem',
@@ -1336,7 +1277,6 @@ const fetchHistoricalRoute = useCallback(async () => {
                   <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>Unique Cities</div>
                 </div>
               </div>
-              
               {/* Surveyor Table */}
               <div style={{
                 background: '#fff',
@@ -1345,7 +1285,7 @@ const fetchHistoricalRoute = useCallback(async () => {
                 overflow: 'hidden'
               }}>
                 <SurveyorTable
-                  surveyors={surveyors}
+                  surveyors={filteredSurveyors}
                   onEdit={handleEditClick}
                   onDelete={handleDeleteClick}
                   onRowClick={handleRowClick}
