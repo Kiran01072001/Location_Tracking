@@ -390,7 +390,8 @@ const SurveyorFormModal = ({ open, onClose, onSave, surveyor }) => {
                 <DialogActions sx={{ 
                     p: 3, 
                     background: '#f8fafc',
-                    borderTop: '1px solid #e2e8f0'
+                    borderTop: '1px solid #e2e8f0',
+                    
                 }}>
                     <GradientBorderButton onClick={onClose} disabled={isSaving}>
                         Cancel
@@ -404,13 +405,14 @@ const SurveyorFormModal = ({ open, onClose, onSave, surveyor }) => {
                                 background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                                 borderRadius: '12px',
                                 boxShadow: '0 8px 25px rgba(37, 99, 235, 0.3)',
-                                color: 'white',
+                                color: '#ffffff',
                                 fontWeight: 600,
                                 padding: '12px 32px',
                                 fontSize: '0.95rem',
                                 textTransform: 'none',
                                 '&:hover': {
                                     background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+                                    color:'#ffffff',
                                     transform: 'translateY(-2px)',
                                     boxShadow: '0 12px 35px rgba(37, 99, 235, 0.4)',
                                 },
