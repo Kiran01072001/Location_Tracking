@@ -9,7 +9,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
     
-    @Value("${frontend.port:9898}")
+    @Value("${frontend.port:3000}")
     private String frontendPort;
     
     @Override
@@ -42,6 +42,8 @@ public class CorsConfig implements WebMvcConfigurer {
             "http://183.82.114.29:6565",
             "http://183.82.114.29:3000",
             "http://183.82.114.29:3001",
+             "http://183.82.114.29:9511",
+              "http://183.82.114.29:9503",
             // File protocol
             "file://"
         };

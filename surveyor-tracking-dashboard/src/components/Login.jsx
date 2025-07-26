@@ -40,7 +40,8 @@ const Login = ({ onLogin }) => {
     try {
       // Import config dynamically to avoid circular dependencies
       const config = await import('../config').then(module => module.default);
-      console.log('Attempting login with backend at:', config.backendHost);
+      console.log('Attempting dashboard login with backend at:', config.backendHost);
+      // Temporarily use regular login until backend is updated with /admin/login
       const response = await fetch(`${config.backendHost}/api/surveyors/login`, {
         method: 'POST',
         headers: { 

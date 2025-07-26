@@ -28,6 +28,10 @@ public void addCorsMappings(@NonNull CorsRegistry registry) {
             "http://183.82.114.29:6060",
             "http://183.82.114.29:6565",
             "http://183.82.114.29:3000",
+            "http://183.82.114.29:3001",
+            "http://183.82.114.29:9511",
+            "http://183.82.114.29:9503",
+
             // Allow file:// protocol for testing
             "file://"
         )

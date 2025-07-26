@@ -10,11 +10,11 @@ const getEnvPort = (defaultPort) => {
 // Centralized port configuration
 const PORTS = {
   // Backend API port
-  BACKEND_API: getEnvPort(6565),
+  BACKEND_API: getEnvPort(9511),
   // Frontend port
-  FRONTEND: getEnvPort(9898),
+  FRONTEND: getEnvPort(3000),
   // Database port if needed
-  DATABASE: getEnvPort(5432)
+  DATABASE: getEnvPort(9503)
 };
 
 // Dynamic System Configuration
@@ -164,11 +164,11 @@ const DYNAMIC_CONFIG = {
 
 const config = {
   // Base URLs constructed using the port configuration
-  backendHost: `http://localhost:${PORTS.BACKEND_API}`,
+  backendHost: `http://183.82.114.29:${PORTS.BACKEND_API}`,
   frontendHost: `http://localhost:${PORTS.FRONTEND}`,
   
   // WebSocket related URLs - SockJS expects HTTP/HTTPS, not ws://
-  webSocketUrl: `http://localhost:${PORTS.BACKEND_API}/ws/location`,
+  webSocketUrl: `http://183.82.114.29:${PORTS.BACKEND_API}/ws/location`,
   
   // Export ports for direct access when needed
   ports: PORTS,

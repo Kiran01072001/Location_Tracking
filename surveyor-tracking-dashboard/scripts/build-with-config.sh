@@ -10,7 +10,7 @@ extract_port() {
   if [[ -z "$port" ]]; then
     echo "Warning: Couldn't extract $port_name from config.js, using default"
     if [[ "$port_name" == "BACKEND_API" ]]; then
-      echo "6565"
+      echo "9511"
     elif [[ "$port_name" == "FRONTEND" ]]; then
       echo "3000"
     else
@@ -35,8 +35,8 @@ echo "Using Frontend Port: $FRONTEND_PORT"
 # Create a temporary .env.production file with proper values
 cat > ../.env.production.temp << EOF
 # Automatically generated from config.js
-REACT_APP_API_URL=http://localhost:${BACKEND_PORT}
-REACT_APP_WS_URL=ws://localhost:${BACKEND_PORT}/ws
+REACT_APP_API_URL=http://183.82.114.29:${BACKEND_PORT}
+REACT_APP_WS_URL=ws://183.82.114.29:${BACKEND_PORT}/ws
 EOF
 
 # Replace the original .env.production file

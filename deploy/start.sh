@@ -6,7 +6,8 @@ if [ -f "./config.sh" ]; then
 else
     echo "Warning: config.sh not found, using default ports"
     # Default values from centralized config
-    BACKEND_PORT=6060
+    BACKEND_PORT=9511
+    DATABASE_PORT=9503
     FRONTEND_PORT=3000
 fi
 

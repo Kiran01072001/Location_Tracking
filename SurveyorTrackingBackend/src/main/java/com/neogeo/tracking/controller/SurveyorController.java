@@ -2,7 +2,6 @@ package com.neogeo.tracking.controller;
 
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -56,8 +55,8 @@ public class SurveyorController {
         return ResponseEntity.ok(savedSurveyor);
     }
 
-    @Operation(summary = "Authenticate surveyor", 
-              description = "Validates surveyor credentials and returns authentication status with surveyor details")
+    @Operation(summary = "Authenticate surveyor (Mobile App)", 
+              description = "Validates surveyor credentials for mobile app login and sets online status")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Authentication successful"),
         @ApiResponse(responseCode = "401", description = "Invalid credentials"),
@@ -69,6 +68,27 @@ public class SurveyorController {
             @RequestBody Map<String, String> credentials) {
         
         Map<String, Object> response = surveyorService.authenticateAndGetResponse(
+            credentials.get("username"),
+            credentials.get("password")
+        );
+        
+        return ResponseEntity.status((int) response.get("status"))
+               .body(response);
+    }
+    
+    @Operation(summary = "Authenticate admin (Dashboard)", 
+              description = "Validates credentials for dashboard login without setting online status")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Authentication successful"),
+        @ApiResponse(responseCode = "401", description = "Invalid credentials"),
+        @ApiResponse(responseCode = "404", description = "Surveyor not found")
+    })
+    @PostMapping("/admin/login")
+    public ResponseEntity<Map<String, Object>> authenticateAdmin(
+            @Parameter(description = "Login credentials (username and password)", required = true)
+            @RequestBody Map<String, String> credentials) {
+        
+        Map<String, Object> response = surveyorService.authenticateWithoutActivityUpdate(
             credentials.get("username"),
             credentials.get("password")
         );

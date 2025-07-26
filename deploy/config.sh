@@ -9,13 +9,13 @@
 # ----------------------------------------------
 
 # Backend API port
-BACKEND_PORT=6565
+BACKEND_PORT=9511
 
 # Frontend port
 FRONTEND_PORT=3000
 
 # Database port
-DATABASE_PORT=5433
+DATABASE_PORT=9503
 
 # ----------------------------------------------
 # DO NOT MODIFY BELOW THIS LINE
@@ -36,7 +36,7 @@ const CONFIG = {
   BACKEND_PORT: ${BACKEND_PORT},
   FRONTEND_PORT: ${FRONTEND_PORT},
   DATABASE_PORT: ${DATABASE_PORT},
-  BACKEND_URL: "http://localhost:${BACKEND_PORT}",
+  BACKEND_URL: "http://183.82.114.29:${BACKEND_PORT}",
   FRONTEND_URL: "http://localhost:${FRONTEND_PORT}",
   WS_URL: "ws://localhost:${BACKEND_PORT}/ws"
 };

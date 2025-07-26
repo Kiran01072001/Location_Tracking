@@ -2,7 +2,6 @@ package com.neogeo.tracking.service;
 
 import java.util.List;
 import java.util.Map;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.time.Instant;
@@ -77,6 +76,7 @@ public class SurveyorService {
 
     /**
      * Authenticates a surveyor and returns a response with status and details
+     * Updates activity status (used for mobile app login)
      * @param username The username to authenticate
      * @param password The password to verify
      * @return A map containing authentication status, HTTP status code, and surveyor details if successful
@@ -97,8 +97,41 @@ public class SurveyorService {
             response.put("status", 200);
             response.put("authenticated", true);
             response.put("surveyor", surveyor);
-            // Update the activity status when authenticated
+            // Update the activity status when authenticated (mobile app login)
             updateSurveyorActivity(surveyor.getId());
+        } else {
+            response.put("status", 401);
+            response.put("authenticated", false);
+            response.put("message", "Invalid credentials");
+        }
+
+        return response;
+    }
+
+    /**
+     * Authenticates a surveyor without updating activity status
+     * Used for dashboard login to avoid marking users as online
+     * @param username The username to authenticate
+     * @param password The password to verify
+     * @return A map containing authentication status, HTTP status code, and surveyor details if successful
+     */
+    public Map<String, Object> authenticateWithoutActivityUpdate(String username, String password) {
+        Map<String, Object> response = new HashMap<>();
+        Surveyor surveyor = repository.findByUsername(username).orElse(null);
+
+        if (surveyor == null) {
+            response.put("status", 404);
+            response.put("message", "Surveyor not found");
+            return response;
+        }
+
+        boolean authenticated = password.equals(surveyor.getPassword());
+
+        if (authenticated) {
+            response.put("status", 200);
+            response.put("authenticated", true);
+            response.put("surveyor", surveyor);
+            // Do NOT update activity status for dashboard login
         } else {
             response.put("status", 401);
             response.put("authenticated", false);
