@@ -165,7 +165,7 @@ const DYNAMIC_CONFIG = {
 const config = {
   // Base URLs constructed using the port configuration
   backendHost: `http://183.82.114.29:${PORTS.BACKEND_API}`,
-  frontendHost: `http://localhost:${PORTS.FRONTEND}`,
+  frontendHost: `http://183.82.114.29:${PORTS.FRONTEND}`,
   
   // WebSocket related URLs - SockJS expects HTTP/HTTPS, not ws://
   webSocketUrl: `http://183.82.114.29:${PORTS.BACKEND_API}/ws/location`,

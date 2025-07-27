@@ -1,7 +1,9 @@
 package com.neogeo.tracking.dto;
 
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.Objects;
+import com.fasterxml.jackson.annotation.JsonSetter;
 
 public class LiveLocationMessage {
     private String surveyorId;
@@ -50,6 +52,31 @@ public class LiveLocationMessage {
 
     public void setTimestamp(Instant timestamp) {
         this.timestamp = timestamp;
+    }
+    
+    /**
+     * Sets timestamp from ISO string format (for mobile app compatibility)
+     * Mobile app sends timestamps as ISO 8601 strings like "2025-01-26T10:30:00"
+     */
+    @JsonSetter("timestamp")
+    public void setTimestampFromString(String timestampString) {
+        if (timestampString == null || timestampString.trim().isEmpty()) {
+            this.timestamp = Instant.now();
+            return;
+        }
+        
+        try {
+            // Try parsing as ISO 8601 instant format first
+            this.timestamp = Instant.parse(timestampString);
+        } catch (DateTimeParseException e1) {
+            try {
+                // Try adding 'Z' for UTC if missing
+                this.timestamp = Instant.parse(timestampString + "Z");
+            } catch (DateTimeParseException e2) {
+                // If all parsing fails, use current time
+                this.timestamp = Instant.now();
+            }
+        }
     }
 
     @Override

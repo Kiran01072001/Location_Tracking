@@ -491,54 +491,13 @@ const groupedSurveyors = useMemo(() => {
 
         console.log('Processed live location:', newLocation);
         setLiveLocation(newLocation);
-        setLiveTrail(prev => {
-          // Only add if different from last point
-          if (prev.length === 0 || prev[prev.length - 1][0] !== newLocation.lat || prev[prev.length - 1][1] !== newLocation.lng) {
-            return [...prev, [newLocation.lat, newLocation.lng]];
-          }
-          return prev;
-        });
+        // For live tracking: ONLY update pin position, do not draw route lines
+        // setLiveTrail is intentionally NOT updated to prevent drawing connections
       } catch (err) {
         console.error('Error parsing live location data:', err);
       }
     });
   }, []);
-
-  // Start live tracking
-  const startLiveTracking = useCallback(() => {
-    if (!selectedSurveyor) {
-      setError('Please select a surveyor first');
-      return;
-    }
-
-    console.log('Starting live tracking for surveyor:', selectedSurveyor);
-    setError('');
-    setLiveLocation(null);
-    setLiveTrail([]);
-    setHistoricalRoute([]);
-
-    if (!stompClientRef.current || !stompClientRef.current.connected) {
-      connectWebSocket();
-
-      const checkConnection = setInterval(() => {
-        if (stompClientRef.current && stompClientRef.current.connected) {
-          clearInterval(checkConnection);
-          subscribeToLiveUpdates(selectedSurveyor);
-          setIsLiveTracking(true);
-        }
-      }, 100);
-
-      setTimeout(() => {
-        clearInterval(checkConnection);
-        if (!stompClientRef.current || !stompClientRef.current.connected) {
-          setError('WebSocket connection failed. Live tracking unavailable.');
-        }
-      }, 5000);
-    } else {
-      subscribeToLiveUpdates(selectedSurveyor);
-      setIsLiveTracking(true);
-    }
-  }, [selectedSurveyor, connectWebSocket, subscribeToLiveUpdates]);
 
   // Stop live tracking
   const stopLiveTracking = useCallback(() => {
@@ -553,6 +512,48 @@ const groupedSurveyors = useMemo(() => {
     setLiveTrail([]);
     setError('');
   }, []);
+
+  // Toggle live tracking - start or stop based on current state
+  const toggleLiveTracking = useCallback(() => {
+    if (isLiveTracking) {
+      // Currently tracking, so stop it
+      stopLiveTracking();
+    } else {
+      // Not tracking, so start it
+      if (!selectedSurveyor) {
+        setError('Please select a surveyor first');
+        return;
+      }
+
+      console.log('Starting live tracking for surveyor:', selectedSurveyor);
+      setError('');
+      setLiveLocation(null);
+      setLiveTrail([]);
+      setHistoricalRoute([]);
+
+      if (!stompClientRef.current || !stompClientRef.current.connected) {
+        connectWebSocket();
+
+        const checkConnection = setInterval(() => {
+          if (stompClientRef.current && stompClientRef.current.connected) {
+            clearInterval(checkConnection);
+            subscribeToLiveUpdates(selectedSurveyor);
+            setIsLiveTracking(true);
+          }
+        }, 100);
+
+        setTimeout(() => {
+          clearInterval(checkConnection);
+          if (!stompClientRef.current || !stompClientRef.current.connected) {
+            setError('WebSocket connection failed. Live tracking unavailable.');
+          }
+        }, 5000);
+      } else {
+        subscribeToLiveUpdates(selectedSurveyor);
+        setIsLiveTracking(true);
+      }
+    }
+  }, [isLiveTracking, selectedSurveyor, connectWebSocket, subscribeToLiveUpdates, stopLiveTracking]);
 
   // Fetch historical route with proper date formatting
   
@@ -863,7 +864,7 @@ const fetchHistoricalRoute = useCallback(async () => {
         {/* Action Buttons */}
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button
-            onClick={startLiveTracking}
+            onClick={toggleLiveTracking}
             style={{
               background: isLiveTracking ? '#ef4444' : '#10b981',
               color: '#fff',
@@ -877,7 +878,7 @@ const fetchHistoricalRoute = useCallback(async () => {
               transition: 'background 0.2s',
             }}
           >
-            Live
+            {isLiveTracking ? 'Stop Live' : 'Live'}
           </button>
           <button
             onClick={fetchHistoricalRoute}

@@ -1,21 +1,9 @@
 import React, { useState } from 'react';
 import { 
-  TextField, 
-  Button, 
-  Paper, 
-  Typography, 
-  Box, 
-  InputAdornment, 
-  IconButton,
-  Alert,
-  CircularProgress,
-  Container
+  TextField, Button, Paper, Typography, Box, 
+  InputAdornment, IconButton, Alert, CircularProgress 
 } from '@mui/material';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import PersonIcon from '@mui/icons-material/Person';
-import LockIcon from '@mui/icons-material/Lock';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
+import { Visibility, VisibilityOff, Person, Lock, Place } from '@mui/icons-material';
 
 const Login = ({ onLogin }) => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
@@ -38,18 +26,17 @@ const Login = ({ onLogin }) => {
 
     setLoading(true);
     try {
-      // Import config dynamically to avoid circular dependencies
       const config = await import('../config').then(module => module.default);
-      console.log('Attempting dashboard login with backend at:', config.backendHost);
-      // Temporarily use regular login until backend is updated with /admin/login
+      
+    
+     
+      // ⚠️ NOTE: This will mark dashboard users as "online" temporarily
+
+      //const response = await fetch(`${config.backendHost}/api/surveyors/admin/login`, {
+      
       const response = await fetch(`${config.backendHost}/api/surveyors/login`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        mode: 'cors',
-        credentials: 'omit',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
       });
       
@@ -57,244 +44,143 @@ const Login = ({ onLogin }) => {
       if (response.ok && data.authenticated) {
         onLogin(data.surveyor);
       } else {
-        setError(data.message || 'Invalid username or password');
+        setError(data.message || 'Invalid credentials');
       }
     } catch (err) {
-      setError('Login failed. Please check your connection and try again.');
-      console.error('Login error:', err);
+      setError('Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        py: 4
-      }}
-    >
-      <Container maxWidth="sm">
-        <Paper 
-          elevation={24}
-          sx={{ 
-            p: 5,
-            borderRadius: 4,
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15)',
-            position: 'relative',
-            overflow: 'hidden',
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: '4px',
-              background: 'linear-gradient(90deg, #667eea, #764ba2)',
-            }
-          }}
-        >
-          {/* Header with Icon */}
-          <Box textAlign="center" mb={4}>
-            <Box
-              sx={{
-                width: 80,
-                height: 80,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px',
-                boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)'
-              }}
-            >
-              <LocationOnIcon sx={{ color: 'white', fontSize: 40 }} />
-            </Box>
-            <Typography 
-              variant="h3" 
-              sx={{ 
-                fontWeight: 700,
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                mb: 1
-              }}
-            >
-              Surveyor Tracking
-            </Typography>
-            <Typography 
-              variant="h6" 
-              color="text.secondary"
-              sx={{ fontWeight: 400 }}
-            >
-              Sign in to your account
-            </Typography>
-          </Box>
+    <Box sx={{
+      height: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #4a6fa5 0%, #166088 100%)',
+      p: 2
+    }}>
+      <Paper sx={{
+        width: '100%',
+        maxWidth: 380,
+        p: 3,
+        borderRadius: 3,
+        bgcolor: 'background.paper',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+        position: 'relative',
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 4,
+          background: 'linear-gradient(90deg, #4a6fa5, #166088)'
+        }
+      }}>
+        <Box textAlign="center" mb={3}>
+          <Place sx={{ 
+            fontSize: 50, 
+            color: '#166088',
+            mb: 1,
+            filter: 'drop-shadow(0 2px 4px rgba(22,96,136,0.3))'
+          }} />
+          <Typography variant="h5" sx={{ 
+            fontWeight: 700,
+            color: '#166088',
+            mb: 0.5
+          }}>
+            Surveyor Track
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Surveyor Tracking Management System
+          </Typography>
+        </Box>
+        
+        {error && (
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 1 }}>
+            {error}
+          </Alert>
+        )}
+        
+        <Box component="form" onSubmit={handleSubmit}>
+          <TextField
+            fullWidth
+            size="small"
+            label="Username"
+            name="username"
+            value={credentials.username}
+            onChange={handleChange}
+            disabled={loading}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Person fontSize="small" sx={{ color: '#4a6fa5' }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 2 }}
+          />
           
-          {error && (
-            <Alert 
-              severity="error" 
-              sx={{ 
-                mb: 3,
-                borderRadius: 2,
-                '& .MuiAlert-icon': {
-                  color: '#d32f2f'
-                }
-              }}
-            >
-              {error}
-            </Alert>
-          )}
+          <TextField
+            fullWidth
+            size="small"
+            label="Password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            value={credentials.password}
+            onChange={handleChange}
+            disabled={loading}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Lock fontSize="small" sx={{ color: '#4a6fa5' }} />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton 
+                    onClick={() => setShowPassword(!showPassword)}
+                    edge="end"
+                    size="small"
+                    sx={{ color: '#4a6fa5' }}
+                  >
+                    {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
           
-          <form onSubmit={handleSubmit} autoComplete="off">
-            <TextField
-              label="Username"
-              name="username"
-              value={credentials.username}
-              onChange={handleChange}
-              fullWidth
-              margin="normal"
-              variant="outlined"
-              disabled={loading}
-              placeholder="Enter your username"
-              autoComplete="new-username"
-              inputProps={{
-                autoComplete: 'new-username',
-                'data-lpignore': 'true'
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#667eea',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#667eea',
-                    borderWidth: 2,
-                  },
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#667eea',
-                },
-              }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <PersonIcon sx={{ color: '#667eea' }} />
-                  </InputAdornment>
-                ),
-              }}
-            />
-            
-            <TextField
-              label="Password"
-              name="password"
-              type={showPassword ? "text" : "password"}
-              value={credentials.password}
-              onChange={handleChange}
-              fullWidth
-              margin="normal"
-              variant="outlined"
-              disabled={loading}
-              placeholder="Enter your password"
-              autoComplete="new-password"
-              inputProps={{
-                autoComplete: 'new-password',
-                'data-lpignore': 'true'
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#667eea',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#667eea',
-                    borderWidth: 2,
-                  },
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#667eea',
-                },
-              }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <LockIcon sx={{ color: '#667eea' }} />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton 
-                      onClick={() => setShowPassword(!showPassword)} 
-                      edge="end"
-                      disabled={loading}
-                      sx={{ color: '#667eea' }}
-                    >
-                      {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-            
-            <Box mt={4}>
-              <Button 
-                type="submit"
-                variant="contained"
-                fullWidth
-                disabled={loading}
-                size="large"
-                sx={{
-                  background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                  borderRadius: 2,
-                  py: 1.5,
-                  fontSize: '1.1rem',
-                  fontWeight: 600,
-                  textTransform: 'none',
-                  boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, #5a6fd8, #6a4190)',
-                    boxShadow: '0 12px 40px rgba(102, 126, 234, 0.4)',
-                    transform: 'translateY(-2px)',
-                  },
-                  '&:disabled': {
-                    background: 'linear-gradient(135deg, #b0b0b0, #a0a0a0)',
-                    transform: 'none',
-                  },
-                  transition: 'all 0.3s ease'
-                }}
-              >
-                {loading ? (
-                  <CircularProgress size={24} color="inherit" />
-                ) : (
-                  'Sign In'
-                )}
-              </Button>
-            </Box>
-          </form>
+          <Button
+            fullWidth
+            type="submit"
+            variant="contained"
+            size="medium"
+            disabled={loading}
+            sx={{
+              mt: 3,
+              py: 1,
+              borderRadius: 1,
+              bgcolor: '#166088',
+              '&:hover': {
+                bgcolor: '#4a6fa5',
+                transform: 'translateY(-1px)'
+              },
+              transition: 'all 0.2s ease'
+            }}
+          >
+            {loading ? <CircularProgress size={22} /> : 'Sign In'}
+          </Button>
+        </Box>
 
-          {/* Footer */}
-          <Box mt={4} textAlign="center">
-            <Typography 
-              variant="body2" 
-              color="text.secondary"
-              sx={{ opacity: 0.7 }}
-            >
-              Secure access to your tracking dashboard
-            </Typography>
-          </Box>
-        </Paper>
-      </Container>
+        <Typography variant="caption" color="text.secondary" display="block" textAlign="center" mt={3}>
+          © NeoGeoInfo Technologies Private Limited
+        </Typography>
+      </Paper>
     </Box>
   );
 };
