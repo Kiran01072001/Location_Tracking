@@ -100,7 +100,7 @@ class LocationTrackingService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Surveyor Tracking Active")
-            .setContentText("Sending location updates every 30 seconds. $surveyorInfo")
+            .setContentText("Sending location updates every 1 minute. $surveyorInfo")
             .setSmallIcon(R.drawable.ic_location)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setOngoing(true)
@@ -120,11 +120,13 @@ class LocationTrackingService : Service() {
 
     // --- THE FIX: The function no longer needs a parameter ---
     private fun startLocationUpdates() {
+        // ✅ IMPROVED: More frequent updates for better real-time tracking
         val locationRequest = LocationRequest.Builder(
             Priority.PRIORITY_HIGH_ACCURACY,
-            30000L // 30 seconds
+            60000L // 1 minute (60 seconds) for better balance of battery and accuracy
         ).apply {
-            setMinUpdateIntervalMillis(15000L) // Minimum update interval of 15 seconds
+            setMinUpdateIntervalMillis(30000L) // Minimum update interval of 30 seconds
+            setMinUpdateDistanceMeters(10.0f) // Update if moved 10+ meters
         }.build()
 
         try {

@@ -11,9 +11,9 @@ if [ -f "./deploy/config.sh" ]; then
     source ./deploy/config.sh
 else
     echo "Using default port configuration"
-    BACKEND_PORT=9511
+    BACKEND_PORT=6565
     FRONTEND_PORT=3000
-    DATABASE_PORT=9503
+    DATABASE_PORT=5432
 fi
 
 echo -e "${GREEN}Starting deployment process...${NC}"

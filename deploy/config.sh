@@ -9,13 +9,13 @@
 # ----------------------------------------------
 
 # Backend API port
-BACKEND_PORT=9511
+BACKEND_PORT=6565
 
 # Frontend port
 FRONTEND_PORT=3000
 
 # Database port
-DATABASE_PORT=9503
+DATABASE_PORT=5432
 
 # ----------------------------------------------
 # DO NOT MODIFY BELOW THIS LINE

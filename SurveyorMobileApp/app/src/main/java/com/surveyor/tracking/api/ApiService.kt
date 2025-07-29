@@ -25,4 +25,14 @@ interface ApiService {
     suspend fun getLocationHistory(
         @Path("surveyorId") surveyorId: String
     ): Response<List<LocationData>>
+    
+    @GET("location/{surveyorId}/latest")
+    suspend fun getLatestLocation(
+        @Path("surveyorId") surveyorId: String
+    ): Response<LocationData>
+    
+    @GET("location/{surveyorId}/latest")
+    suspend fun getLatestLocation(
+        @Path("surveyorId") surveyorId: String
+    ): Response<LocationData>
 }

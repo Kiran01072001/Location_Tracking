@@ -5,19 +5,18 @@ import L from 'leaflet';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import 'leaflet/dist/leaflet.css';
-import SockJS from 'sockjs-client';
-import { Stomp } from '@stomp/stompjs';
 
 import SurveyorTable from '../components/SurveyorTable';
 import SurveyorFormModal from '../components/SurveyorFormModal';
-// Material-UI components are used in inline styles and JSX
 import { Snackbar, Alert } from '@mui/material';
 import { useDynamicConfig } from '../hooks/useDynamicConfig';
 
+// ❌ REMOVED: The custom AlertPopup component is no longer needed.
+
 // Configuration matching your backend exactly
 const config = {
-  backendHost: 'http://183.82.114.29:9511',
-  webSocketUrl: 'http://183.82.114.29:9511/ws/location',
+  backendHost: 'http://183.82.114.29:6565',
+  webSocketUrl: 'http://183.82.114.29:6565/ws/location',
   refreshInterval: 30000, // 30 seconds
   liveUpdateInterval: 5000, // 5 seconds for live tracking
   handleFetchError: (error, endpoint) => {
@@ -37,6 +36,26 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
+
+// ✅ NEW: Utility functions for distance calculation and time formatting
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Radius of Earth in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance in kilometers
+};
+
+const formatTime = (timestamp) => {
+  return new Date(timestamp).toLocaleTimeString('en-US', {
+    hour12: true,
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+};
 
 // Custom icons for different states
 const liveIcon = new L.Icon({
@@ -69,34 +88,34 @@ const endIcon = new L.Icon({
 // Component to auto-fit map bounds
 const MapBounds = ({ positions }) => {
   const map = useMap();
-  
+ 
   useEffect(() => {
     if (positions && positions.length > 0) {
       const bounds = L.latLngBounds(positions);
       map.fitBounds(bounds, { padding: [20, 20] });
     }
   }, [positions, map]);
-  
+ 
   return null;
 };
 
 // OSRM Route component for historical routes
 const OSRMRoute = ({ coordinates, color = '#6366f1' }) => {
   const [routeCoordinates, setRouteCoordinates] = useState([]);
-  
+ 
   useEffect(() => {
     if (!coordinates || coordinates.length < 2) return;
-    
+   
     const fetchRoute = async () => {
       try {
         const start = coordinates[0];
         const end = coordinates[coordinates.length - 1];
-        
+       
         const osrmUrl = `https://router.project-osrm.org/route/v1/walking/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
-        
+       
         const response = await fetch(osrmUrl);
         const data = await response.json();
-        
+       
         if (data.routes && data.routes[0]) {
           const routeGeometry = data.routes[0].geometry.coordinates;
           const leafletCoords = routeGeometry.map(coord => [coord[1], coord[0]]);
@@ -107,12 +126,12 @@ const OSRMRoute = ({ coordinates, color = '#6366f1' }) => {
         setRouteCoordinates(coordinates);
       }
     };
-    
+   
     fetchRoute();
   }, [coordinates]);
 
   if (routeCoordinates.length === 0) return null;
-  
+ 
   return (
     <Polyline
       positions={routeCoordinates}
@@ -126,7 +145,7 @@ const OSRMRoute = ({ coordinates, color = '#6366f1' }) => {
 const LiveTrackingPage = () => {
   // Dynamic configuration hook
   const dynamicConfig = useDynamicConfig();
-  
+ 
   // State management
   const [surveyors, setSurveyors] = useState([]);
   const [statusMap, setStatusMap] = useState({});
@@ -138,26 +157,18 @@ const LiveTrackingPage = () => {
   const [historicalRoute, setHistoricalRoute] = useState([]);
   const [liveLocation, setLiveLocation] = useState(null);
   const [liveTrail, setLiveTrail] = useState([]);
-
-  // --- REPLACE the old state with this ---
-const [isLive, setIsLive] = useState(true); // Default to live mode
-const [mapProps, setMapProps] = useState(null); // This will hold all props for the map
-  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [connectionStatus, setConnectionStatus] = useState('Disconnected');
   const [city, setCity] = useState('');
   const [project, setProject] = useState('');
   const [surveyorSearch, setSurveyorSearch] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  // Mode toggle: 'tracking' or 'management'
-  const [mode, setMode] = useState('tracking');
+  // ❌ REMOVED: All state related to popups is no longer needed.
 
   // Surveyor Management state
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSurveyor, setEditingSurveyor] = useState(null);
-  const [selectedSurveyorDetail, setSelectedSurveyorDetail] = useState(null);
 
   // Remove mode toggle and use modal overlay instead
   const [surveyorManagementOpen, setSurveyorManagementOpen] = useState(false);
@@ -197,11 +208,7 @@ const [mapProps, setMapProps] = useState(null); // This will hold all props for 
   };
 
   const handleRowClick = (surveyor) => {
-    setSelectedSurveyorDetail(surveyor);
-  };
-
-  const handleBackToList = () => {
-    setSelectedSurveyorDetail(null);
+    console.log('Surveyor selected:', surveyor);
   };
 
   const openSurveyorManagement = () => {
@@ -210,7 +217,6 @@ const [mapProps, setMapProps] = useState(null); // This will hold all props for 
 
   const closeSurveyorManagement = () => {
     setSurveyorManagementOpen(false);
-    setSelectedSurveyorDetail(null);
   };
 
 
@@ -239,13 +245,11 @@ const groupedSurveyors = useMemo(() => {
   });
   return groups;
 }, [filteredSurveyors]);
-  
-  // WebSocket refs
-  const stompClientRef = useRef(null);
-  const subscriptionRef = useRef(null);
+ 
+  // Polling refs (WebSocket removed - using REST API only)
   const statusIntervalRef = useRef(null);
   const liveLocationIntervalRef = useRef(null);
-  
+ 
   // API helper function
   const apiCall = useCallback(async (endpoint, options = {}) => {
     try {
@@ -255,7 +259,7 @@ const groupedSurveyors = useMemo(() => {
       //const url = endpoint; // Use a relative path so the proxy can work
 
       console.log(`Making API call to: ${url}`);
-      
+     
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -266,11 +270,11 @@ const groupedSurveyors = useMemo(() => {
         mode: 'cors',
         ...options,
       });
-      
+     
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+     
       const data = await response.json();
       console.log(`API response from ${endpoint}:`, data);
       return data;
@@ -287,9 +291,9 @@ const groupedSurveyors = useMemo(() => {
       console.log('Loading surveyors...');
       setLoading(true);
       setError('');
-      
+     
       let endpoint = '/api/surveyors';
-      
+     
       // Use backend filter endpoint if filters are applied
       if (city || project) {
         const params = new URLSearchParams();
@@ -297,26 +301,26 @@ const groupedSurveyors = useMemo(() => {
         if (project) params.append('project', project);
         endpoint = `/api/surveyors/filter?${params.toString()}`;
       }
-      
+     
       const data = await apiCall(endpoint);
-      
+     
       // Filter out admin accounts - only show actual surveyors
-      const filteredSurveyors = data.filter(surveyor => 
-        surveyor.id && 
+      const filteredSurveyors = data.filter(surveyor =>
+        surveyor.id &&
         !surveyor.id.toLowerCase().includes('admin') &&
         !surveyor.username?.toLowerCase().includes('admin')
       );
-      
+     
       setSurveyors(filteredSurveyors);
       console.log('Filtered surveyors (excluding admin):', filteredSurveyors);
-      
+     
     } catch (err) {
       console.error('Failed to load surveyors:', err);
-      
+     
       // Fallback to demo data with dynamic cities and projects
       const cities = dynamicConfig.getDropdownOptions('cities');
       const projects = dynamicConfig.getDropdownOptions('projects');
-      
+     
       const mockSurveyors = [
         {
           id: 'SUR009',
@@ -340,10 +344,10 @@ const groupedSurveyors = useMemo(() => {
           username: 'priya_sharma'
         }
       ];
-      
+     
       setSurveyors(mockSurveyors);
       setError('Using demo data - Backend not available');
-      
+     
       // Also set mock status immediately
       const mockStatus = {
         'SUR009': 'Online',
@@ -361,7 +365,7 @@ const groupedSurveyors = useMemo(() => {
     try {
       console.log('Fetching surveyor status...');
       const data = await apiCall('/api/surveyors/status');
-      
+     
       // Filter status to only include actual surveyors (not admin)
       const filteredStatus = {};
       Object.keys(data).forEach(surveyorId => {
@@ -369,12 +373,12 @@ const groupedSurveyors = useMemo(() => {
           filteredStatus[surveyorId] = data[surveyorId];
         }
       });
-      
+     
       setStatusMap(filteredStatus);
       console.log('Filtered status map:', filteredStatus);
     } catch (err) {
       console.error('Failed to load status:', err);
-      
+     
       // Mock status for actual surveyors only
       const mockStatus = {};
       surveyors.forEach(surveyor => {
@@ -396,16 +400,16 @@ const groupedSurveyors = useMemo(() => {
   useEffect(() => {
     if (surveyors.length > 0) {
       loadStatus();
-      
+     
       if (statusIntervalRef.current) {
         clearInterval(statusIntervalRef.current);
       }
-      
+     
       statusIntervalRef.current = setInterval(() => {
         loadStatus();
       }, config.refreshInterval);
     }
-    
+   
     return () => {
       if (statusIntervalRef.current) {
         clearInterval(statusIntervalRef.current);
@@ -413,248 +417,160 @@ const groupedSurveyors = useMemo(() => {
     };
   }, [surveyors, loadStatus]);
 
-  // WebSocket connection setup
-  const connectWebSocket = useCallback(() => {
-    if (stompClientRef.current && stompClientRef.current.connected) {
-      console.log('WebSocket already connected');
-      return;
-    }
-    
-    try {
-      console.log('Connecting to WebSocket:', config.webSocketUrl);
-      const socket = new SockJS(config.webSocketUrl);
-      const stompClient = Stomp.over(socket);
-      
-      stompClient.debug = () => {};
-      
-      stompClient.connect({}, 
-        (frame) => {
-          console.log('Connected to WebSocket:', frame);
-          setConnectionStatus('Connected');
-          stompClientRef.current = stompClient;
-        },
-        (error) => {
-          console.error('WebSocket connection error:', error);
-          setConnectionStatus('Error');
-          setError('WebSocket connection failed - Demo mode active');
-        }
-      );
-      
-    } catch (err) {
-      console.error('Failed to create WebSocket connection:', err);
-      setConnectionStatus('Error');
-      setError('Failed to create WebSocket connection - Demo mode active');
-    }
-  }, []);
-
-  // WebSocket disconnection
-  const disconnectWebSocket = useCallback(() => {
-    if (subscriptionRef.current) {
-      subscriptionRef.current.unsubscribe();
-      subscriptionRef.current = null;
-    }
-    
-    if (stompClientRef.current && stompClientRef.current.connected) {
-      stompClientRef.current.disconnect(() => {
-        console.log('Disconnected from WebSocket');
-        setConnectionStatus('Disconnected');
-      });
-    }
-    stompClientRef.current = null;
-  }, []);
-
-  // Subscribe to live updates for specific surveyor
-  const subscribeToLiveUpdates = useCallback((surveyorId) => {
-    if (!stompClientRef.current || !stompClientRef.current.connected) {
-      setError('WebSocket not connected. Live tracking unavailable.');
-      return;
-    }
-
-    if (subscriptionRef.current) {
-      subscriptionRef.current.unsubscribe();
-    }
-
-    const topic = `/topic/location/${surveyorId}`;
-    console.log('Subscribing to WebSocket topic:', topic);
-
-    subscriptionRef.current = stompClientRef.current.subscribe(topic, (message) => {
-      try {
-        console.log('Received WebSocket message:', message.body);
-        const locationData = JSON.parse(message.body);
-
-        const newLocation = {
-          lat: locationData.latitude,
-          lng: locationData.longitude,
-          timestamp: new Date(locationData.timestamp), // Already in UTC from database
-          surveyorId: locationData.surveyorId
-        };
-
-        console.log('Processed live location:', newLocation);
-        setLiveLocation(newLocation);
-        // For live tracking: ONLY update pin position, do not draw route lines
-        // setLiveTrail is intentionally NOT updated to prevent drawing connections
-      } catch (err) {
-        console.error('Error parsing live location data:', err);
-      }
-    });
-  }, []);
-
-  // Stop live tracking
-  const stopLiveTracking = useCallback(() => {
-    setIsLiveTracking(false);
-
-    if (subscriptionRef.current) {
-      subscriptionRef.current.unsubscribe();
-      subscriptionRef.current = null;
-    }
-
-    setLiveLocation(null);
-    setLiveTrail([]);
+  // ✅ NEW: Polling for latest location every 10 minutes
+  const startLocationPolling = useCallback((surveyorId) => {
+    console.log('🔄 Starting location polling for surveyor:', surveyorId);
+    setConnectionStatus('Polling');
     setError('');
+   
+    // Clear any existing interval
+    if (liveLocationIntervalRef.current) {
+      clearInterval(liveLocationIntervalRef.current);
+    }
+   
+    // Function to fetch latest location
+    const fetchLatestLocation = async () => {
+      try {
+        console.log('📍 Fetching latest location for:', surveyorId);
+        const data = await apiCall(`/api/location/${surveyorId}/latest`);
+       
+        if (data && data.latitude && data.longitude) {
+          const newLocation = {
+            lat: data.latitude,
+            lng: data.longitude,
+            timestamp: new Date(data.timestamp),
+            surveyorId: data.surveyorId
+          };
+         
+          console.log('✅ Latest location received:', newLocation);
+          setLiveLocation(newLocation);
+          setConnectionStatus('Connected');
+         
+          // ❌ REMOVED: No trail for live tracking - only moving pin
+        } else {
+          console.log('⚠️ No location data found for surveyor:', surveyorId);
+        }
+      } catch (err) {
+        console.error('❌ Error fetching latest location:', err);
+        setError('Failed to fetch latest location data');
+      }
+    };
+   
+    // Fetch immediately
+    fetchLatestLocation();
+   
+    // ✅ OPTIMIZED: Fetch every 30 seconds to catch mobile app's 10-minute updates quickly
+    liveLocationIntervalRef.current = setInterval(fetchLatestLocation, 30000);
+   
+  }, [apiCall]);
+
+  // ✅ NEW: Stop location polling
+  const stopLocationPolling = useCallback(() => {
+    console.log('🛑 Stopping location polling');
+   
+    if (liveLocationIntervalRef.current) {
+      clearInterval(liveLocationIntervalRef.current);
+      liveLocationIntervalRef.current = null;
+    }
+   
+    setConnectionStatus('Disconnected');
+    setLiveLocation(null);
   }, []);
 
-  // Toggle live tracking - start or stop based on current state
+  // ✅ UPDATED: Now uses window.alert() for validation
   const toggleLiveTracking = useCallback(() => {
-    if (isLiveTracking) {
-      // Currently tracking, so stop it
-      stopLiveTracking();
-    } else {
-      // Not tracking, so start it
-      if (!selectedSurveyor) {
-        setError('Please select a surveyor first');
-        return;
-      }
+    if (!selectedSurveyor) {
+      window.alert('Please select a surveyor before starting live tracking.');
+      return;
+    }
 
-      console.log('Starting live tracking for surveyor:', selectedSurveyor);
+    if (isLiveTracking) {
+      // Stop live tracking
+      console.log('🛑 Stopping live tracking for:', selectedSurveyor);
+      setIsLiveTracking(false);
+      stopLocationPolling();
+      setError('');
+    } else {
+      // Start live tracking
+      console.log('🟢 Starting live tracking for:', selectedSurveyor);
+      setIsLiveTracking(true);
       setError('');
       setLiveLocation(null);
-      setLiveTrail([]);
       setHistoricalRoute([]);
-
-      if (!stompClientRef.current || !stompClientRef.current.connected) {
-        connectWebSocket();
-
-        const checkConnection = setInterval(() => {
-          if (stompClientRef.current && stompClientRef.current.connected) {
-            clearInterval(checkConnection);
-            subscribeToLiveUpdates(selectedSurveyor);
-            setIsLiveTracking(true);
-          }
-        }, 100);
-
-        setTimeout(() => {
-          clearInterval(checkConnection);
-          if (!stompClientRef.current || !stompClientRef.current.connected) {
-            setError('WebSocket connection failed. Live tracking unavailable.');
-          }
-        }, 5000);
-      } else {
-        subscribeToLiveUpdates(selectedSurveyor);
-        setIsLiveTracking(true);
-      }
+      startLocationPolling(selectedSurveyor);
     }
-  }, [isLiveTracking, selectedSurveyor, connectWebSocket, subscribeToLiveUpdates, stopLiveTracking]);
+  }, [selectedSurveyor, isLiveTracking, stopLocationPolling, startLocationPolling]);
 
-  // Fetch historical route with proper date formatting
-  
-    // Fetch Historical
-
-const fetchHistoricalRoute = useCallback(async () => {
-  if (!selectedSurveyor) {
-    setError('Please select a surveyor first');
-    return;
-  }
-  
-  setLoading(true);
-  setError('');
-  setHistoricalRoute([]);
-  setLiveLocation(null);
-  setLiveTrail([]);
-
-  try {
-    // Convert dates to UTC properly - the fromDate and toDate are already in local time
-    // We need to convert them to UTC for the backend
-    if (!fromDate || !toDate) {
-      setError('Please select both start and end dates');
+  // ✅ UPDATED: Now uses window.alert() for validation and no-data messages
+  const fetchHistoricalRoute = useCallback(async () => {
+    if (!selectedSurveyor) {
+      window.alert('Please select a surveyor to view historical data.');
       return;
     }
-    
-    const startFormatted = fromDate.toISOString();
-    const endFormatted = toDate.toISOString();
-    
-    console.log('Fetching historical data for:', {
-      surveyor: selectedSurveyor,
-      start: startFormatted,
-      end: endFormatted
-    });
-    
-    const url = `/api/location/${selectedSurveyor}/track?start=${encodeURIComponent(startFormatted)}&end=${encodeURIComponent(endFormatted)}`;
-    console.log('API URL:', url);
-    
-    const response = await apiCall(url);
-    console.log('Raw API response:', response);
-
-    // Handle both response formats:
-    // 1. Direct array (localhost) 
-    // 2. Spring Data REST paginated { content: [...] } (production)
-    const data = Array.isArray(response) ? response : response?.content || [];
-    
-    console.log('Processed data:', data);
-    
-    if (data.length > 0) {
-      const routePoints = data.map(point => ({
-        lat: point.latitude,
-        lng: point.longitude,
-        timestamp: new Date(point.timestamp) // Convert to Date object
-      }));
-      
-      setHistoricalRoute(routePoints);
-      console.log('Route points processed:', routePoints.length);
-      
-      // Generate Google Maps URL for external navigation
-      if (routePoints.length > 1) {
-        const start = routePoints[0];
-        const end = routePoints[routePoints.length - 1];
-        const googleMapsUrl = `https://www.google.com/maps/dir/${start.lat},${start.lng}/${end.lat},${end.lng}/data=!4m2!4m1!3e2`;
-        console.log('Google Maps URL:', googleMapsUrl);
-        window.open(googleMapsUrl, '_blank', 'noopener,noreferrer');
-      }
-    } else {
-      setError(''); // Don't show inline/floating error
-      setWarningOpen(true);
+   
+    if (!fromDate || !toDate) {
+      window.alert('Please select both a "From" and "To" date to fetch historical data.');
+      return;
     }
-  } catch (error) {
-    console.error('Failed to fetch track data:', error);
-    
-    // Fallback demo data with proper timestamps
-    const demoRoute = Array.from({ length: 5 }, (_, i) => {
-      const timeOffset = (toDate - fromDate) * (i / 4);
-      return {
-        lat: 17.4010007 + (Math.random() - 0.5) * 0.01,
-        lng: 78.5643879 + (Math.random() - 0.5) * 0.01,
-        timestamp: new Date(fromDate.getTime() + timeOffset)
-      };
-    });
-    
-    setHistoricalRoute(demoRoute);
-    setError('Demo mode: Showing simulated historical route');
-  } finally {
-    setLoading(false);
-  }
-}, [selectedSurveyor, fromDate, toDate, apiCall]);
+   
+    setLoading(true);
+    setError('');
+    setHistoricalRoute([]);
+    setLiveLocation(null);
+    setLiveTrail([]);
 
-
-
-
-
-
+    try {
+      const startUTC = new Date(fromDate.getTime() - (fromDate.getTimezoneOffset() * 60000));
+      const endUTC = new Date(toDate.getTime() - (toDate.getTimezoneOffset() * 60000));
+     
+      const startFormatted = startUTC.toISOString();
+      const endFormatted = endUTC.toISOString();
+     
+      const url = `/api/location/${selectedSurveyor}/track?start=${encodeURIComponent(startFormatted)}&end=${encodeURIComponent(endFormatted)}`;
+      const response = await apiCall(url);
+      const data = Array.isArray(response) ? response : response?.content || [];
+     
+      if (data.length > 0) {
+        const routePoints = data.map(point => ({
+          lat: point.latitude,
+          lng: point.longitude,
+          timestamp: new Date(point.timestamp)
+        }));
+       
+        setHistoricalRoute(routePoints);
+       
+        if (routePoints.length > 1) {
+          const start = routePoints[0];
+          const end = routePoints[routePoints.length - 1];
+          const googleMapsUrl = `https://www.google.com/maps/dir/${start.lat},${start.lng}/${end.lat},${end.lng}/?travelmode=driving&dir_action=navigate`;
+          window.open(googleMapsUrl, '_blank', 'noopener,noreferrer');
+        }
+      } else {
+        window.alert(`No location data was found for surveyor "${selectedSurveyor}" in the selected time range.`);
+      }
+    } catch (error) {
+      console.error('Failed to fetch track data:', error);
+      setError('Demo mode: Showing simulated historical route');
+      const demoRoute = Array.from({ length: 5 }, (_, i) => {
+        const timeOffset = (toDate.getTime() - fromDate.getTime()) * (i / 4);
+        return {
+          lat: 17.4010007 + (Math.random() - 0.5) * 0.01,
+          lng: 78.5643879 + (Math.random() - 0.5) * 0.01,
+          timestamp: new Date(fromDate.getTime() + timeOffset)
+        };
+      });
+      setHistoricalRoute(demoRoute);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedSurveyor, fromDate, toDate, apiCall]);
 
   // Get map center and positions for bounds
   const getMapData = () => {
     if (liveLocation) {
       return {
         center: [liveLocation.lat, liveLocation.lng],
-        positions: liveTrail.length > 0 ? liveTrail : [[liveLocation.lat, liveLocation.lng]]
+        positions: [[liveLocation.lat, liveLocation.lng]] // ✅ FIXED: Only current position, no trail
       };
     } else if (historicalRoute.length > 0) {
       const routePositions = historicalRoute.map(point => [point.lat, point.lng]);
@@ -663,7 +579,7 @@ const fetchHistoricalRoute = useCallback(async () => {
         positions: routePositions
       };
     }
-    
+   
     // Default center from dynamic configuration
     const mapConfig = dynamicConfig.getMapConfig();
     return {
@@ -686,6 +602,8 @@ const fetchHistoricalRoute = useCallback(async () => {
       background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
       fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
     }}>
+      {/* ❌ REMOVED: The AlertPopup component usage has been removed from here. */}
+     
       {/* Header Section (Top Bar) */}
       <div style={{
         background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
@@ -702,8 +620,8 @@ const fetchHistoricalRoute = useCallback(async () => {
         {/* Left: Socket and Total Surveyors */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', position: 'absolute', left: '2rem', top: 0, bottom: 0, height: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '1rem' }}>
-            <span>{connectionStatus === 'Connected' ? '🟢' : '🔴'}</span>
-            <span>Socket: {connectionStatus}</span>
+            <span>{connectionStatus === 'Connected' || connectionStatus === 'Polling' ? '🟢' : '🔴'}</span>
+            <span>Status: {connectionStatus}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '1rem' }}>
             <span>📊</span>
@@ -861,6 +779,7 @@ const fetchHistoricalRoute = useCallback(async () => {
             popperPlacement="bottom-end"
           />
         </div>
+
         {/* Action Buttons */}
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button
@@ -900,7 +819,7 @@ const fetchHistoricalRoute = useCallback(async () => {
         </div>
       </div>
       {/* Error Display - Floating on Left Side */}
-      {error && error !== 'No location data found for the selected time range' && (
+      {error && (
         <div style={{
           position: 'absolute',
           bottom: '20px',
@@ -951,21 +870,11 @@ const fetchHistoricalRoute = useCallback(async () => {
                     <strong>Coordinates:</strong> {liveLocation.lat.toFixed(6)}, {liveLocation.lng.toFixed(6)}
                   </p>
                   <p style={{ margin: '0.25em 0', fontSize: '0.9rem' }}>
-                    <strong>Time:</strong> {new Date().toLocaleTimeString()}
+                    <strong>Time:</strong> {liveLocation.timestamp ? formatTime(liveLocation.timestamp) : 'Unknown'}
                   </p>
                 </div>
               </Popup>
             </Marker>
-          )}
-
-          {/* 🟢 Green Trail - Recent Position Trail */}
-          {liveTrail.length > 1&& (
-            <Polyline
-              positions={liveTrail}
-              color="#10b981"
-              weight={3}
-              opacity={0.8}
-            />
           )}
 
           {/* 🔵 Blue Route - Full Route Line (Historical) */}
@@ -1044,7 +953,7 @@ const fetchHistoricalRoute = useCallback(async () => {
               border: '1.5px solid rgba(59,130,246,0.18)',
               boxShadow: '0 4px 24px rgba(30,64,175,0.10)',
               minWidth: '260px',
-              zIndex: 1000, // CHANGED: Increased z-index to ensure this panel is on top of the map
+              zIndex: 1000,
               backdropFilter: 'blur(8px)',
               color: '#222',
               fontWeight: 500,
@@ -1082,7 +991,6 @@ const fetchHistoricalRoute = useCallback(async () => {
       </div>
       {/* Custom CSS */}
       <style>{`
-        /* --- REPLACED: Updated and comprehensive styles for the DatePicker --- */
         .date-picker { width: 100% !important; box-sizing: border-box; padding: 0.5rem 1rem !important; border-radius: 8px !important; border: 1.5px solid #e5e7eb !important; font-size: 1.05rem !important; font-weight: 500 !important; background: #ffffff !important; cursor: pointer; }
         .date-picker::placeholder { color: #6b7280; }
         .date-picker:focus { border-color: #3b82f6 !important; outline: none !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important; }
@@ -1184,7 +1092,7 @@ const fetchHistoricalRoute = useCallback(async () => {
                   onClick={handleAddClick}
                   style={{
                     background: 'linear-gradient(135deg, #10b981 0%, #1e40af 100%)',
-                    color: '#fff', 
+                    color: '#fff',
                     border: 'none',
                     borderRadius: '12px',
                     padding: '0.75rem 1.5rem',

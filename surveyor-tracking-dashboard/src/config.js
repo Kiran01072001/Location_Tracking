@@ -10,11 +10,11 @@ const getEnvPort = (defaultPort) => {
 // Centralized port configuration
 const PORTS = {
   // Backend API port
-  BACKEND_API: getEnvPort(9511),
+  BACKEND_API: getEnvPort(6565),
   // Frontend port
   FRONTEND: getEnvPort(3000),
   // Database port if needed
-  DATABASE: getEnvPort(9503)
+  DATABASE: getEnvPort(5432),
 };
 
 // Dynamic System Configuration

@@ -97,7 +97,7 @@ public class SurveyorController {
                .body(response);
     }
     
-    @Operation(summary = "Check username availability", 
+    @Operation(summary = "Check username availability",
               description = "Checks if a username is available for registration")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Availability check completed")

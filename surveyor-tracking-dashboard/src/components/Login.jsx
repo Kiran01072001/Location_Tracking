@@ -27,21 +27,15 @@ const Login = ({ onLogin }) => {
     setLoading(true);
     try {
       const config = await import('../config').then(module => module.default);
-      
-    
-     
-      // ⚠️ NOTE: This will mark dashboard users as "online" temporarily
-
-      //const response = await fetch(`${config.backendHost}/api/surveyors/admin/login`, {
-      
-      const response = await fetch(`${config.backendHost}/api/surveyors/login`, {
+      console.log('🔧 LOGIN FIX: Using /api/surveyors/login endpoint');
+      const response = await fetch(`${config.backendHost}/api/surveyors/login`, {  
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
       });
       
       const data = await response.json();
-      if (response.ok && data.authenticated) {
+      if (response.ok && data.success) {
         onLogin(data.surveyor);
       } else {
         setError(data.message || 'Invalid credentials');

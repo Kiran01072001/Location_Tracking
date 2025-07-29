@@ -4,7 +4,7 @@ module.exports = function(app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://183.82.114.29:9511',
+      target: 'http://183.82.114.29:6565',
       changeOrigin: true,
     })
   );
@@ -12,7 +12,7 @@ module.exports = function(app) {
   app.use(
     '/ws',
     createProxyMiddleware({
-      target: 'http://183.82.114.29:9511',
+      target: 'http://183.82.114.29:6565',
       changeOrigin: true,
       ws: true, // Enable WebSocket proxying
     })

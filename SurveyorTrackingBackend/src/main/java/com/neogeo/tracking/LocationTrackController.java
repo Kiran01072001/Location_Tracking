@@ -65,9 +65,14 @@ public class LocationTrackController {
 
     @Operation(summary = "Get latest location")
     @GetMapping("/location/{surveyorId}/latest")
-    public LocationTrack getLatestLocation(
+    public ResponseEntity<LocationTrack> getLatestLocation(
             @Parameter(description = "ID of the surveyor") @PathVariable String surveyorId) {
-        return locationTrackService.getLatestLocation(surveyorId);
+        LocationTrack location = locationTrackService.getLatestLocation(surveyorId);
+        if (location != null) {
+            return ResponseEntity.ok(location);
+        } else {
+            return ResponseEntity.noContent().build();
+        }
     }
 
     @Operation(summary = "Get location history")

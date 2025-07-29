@@ -2,15 +2,14 @@ package com.neogeo.tracking;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
 
 import com.neogeo.tracking.model.LocationTrack;
 import com.neogeo.tracking.model.Surveyor;
@@ -62,9 +61,14 @@ public class LocationTrackService {
     }
 
     public LocationTrack getLatestLocation(String surveyorId) {
-        return locationTrackRepository
-            .findTopBySurveyorIdOrderByTimestampDesc(surveyorId)
-            .orElse(null);
+        try {
+            return locationTrackRepository
+                .findTopBySurveyorIdOrderByTimestampDesc(surveyorId)
+                .orElse(null);
+        } catch (Exception e) {
+            System.err.println("Error fetching latest location for surveyor " + surveyorId + ": " + e.getMessage());
+            return null;
+        }
     }
 
     public List<LocationTrack> getTrackHistory(String surveyorId, Instant start, Instant end) {
@@ -138,5 +142,83 @@ public class LocationTrackService {
                 track.getSurveyorId(), track.getTimestamp(),
                 track.getLatitude(), track.getLongitude())
         );
+    }
+    
+    /**
+     * Ensures complete route data by filling in large gaps between location points
+     * @param tracks Original list of location tracks
+     * @return Enhanced list with interpolated points for large gaps
+     */
+    private List<LocationTrack> ensureCompleteRoute(List<LocationTrack> tracks) {
+        if (tracks == null || tracks.isEmpty()) {
+            return tracks;
+        }
+        
+        List<LocationTrack> enhancedTracks = new java.util.ArrayList<>();
+        enhancedTracks.add(tracks.get(0)); // Add the first point
+        
+        // Check for gaps between consecutive points
+        for (int i = 1; i < tracks.size(); i++) {
+            LocationTrack prev = tracks.get(i-1);
+            LocationTrack curr = tracks.get(i);
+            
+            // Calculate time difference in minutes
+            long timeDiffMinutes = java.time.Duration.between(prev.getTimestamp(), curr.getTimestamp()).toMinutes();
+            
+            // If gap is more than 5 minutes, add interpolated points
+            if (timeDiffMinutes > 5) {
+                // Calculate distance between points
+                double distance = calculateDistance(prev.getLatitude(), prev.getLongitude(), 
+                                                 curr.getLatitude(), curr.getLongitude());
+                
+                // If distance is significant, add intermediate points
+                if (distance > 0.1) { // More than 100 meters
+                    int pointsToAdd = Math.min((int)(timeDiffMinutes / 2), 10); // Add points every 2 minutes, max 10 points
+                    
+                    for (int j = 1; j <= pointsToAdd; j++) {
+                        // Calculate interpolation factor
+                        double factor = (double)j / (pointsToAdd + 1);
+                        
+                        // Interpolate coordinates
+                        double interpLat = prev.getLatitude() + factor * (curr.getLatitude() - prev.getLatitude());
+                        double interpLon = prev.getLongitude() + factor * (curr.getLongitude() - prev.getLongitude());
+                        
+                        // Calculate intermediate timestamp
+                        Instant interpTime = prev.getTimestamp().plus(
+                            java.time.Duration.between(prev.getTimestamp(), curr.getTimestamp()).multipliedBy((long)(factor * 1000)).toMillis(), 
+                            java.time.temporal.ChronoUnit.MILLIS);
+                        
+                        // Create and add interpolated point
+                        LocationTrack interpPoint = new LocationTrack(
+                            prev.getSurveyorId(),
+                            interpLat,
+                            interpLon,
+                            interpTime,
+                            null // No geometry for interpolated points
+                        );
+                        enhancedTracks.add(interpPoint);
+                    }
+                }
+            }
+            
+            // Add the current point
+            enhancedTracks.add(curr);
+        }
+        
+        return enhancedTracks;
+    }
+    
+    /**
+     * Calculates distance between two points in kilometers
+     */
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        double R = 6371; // Earth radius in kilometers
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
     }
 }
