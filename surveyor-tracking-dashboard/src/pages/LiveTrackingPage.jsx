@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -8,10 +7,9 @@ import 'leaflet/dist/leaflet.css';
 
 import SurveyorTable from '../components/SurveyorTable';
 import SurveyorFormModal from '../components/SurveyorFormModal';
-import { Snackbar, Alert } from '@mui/material';
+// Material-UI components are used in inline styles and JSX
+import { Snackbar, Alert, Dialog, DialogContent, DialogTitle, DialogActions, Button } from '@mui/material';
 import { useDynamicConfig } from '../hooks/useDynamicConfig';
-
-// ❌ REMOVED: The custom AlertPopup component is no longer needed.
 
 // Configuration matching your backend exactly
 const config = {
@@ -50,10 +48,10 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 const formatTime = (timestamp) => {
-  return new Date(timestamp).toLocaleTimeString('en-US', {
-    hour12: true,
-    hour: 'numeric',
-    minute: '2-digit'
+  return new Date(timestamp).toLocaleTimeString('en-US', { 
+    hour12: true, 
+    hour: 'numeric', 
+    minute: '2-digit' 
   });
 };
 
@@ -88,34 +86,34 @@ const endIcon = new L.Icon({
 // Component to auto-fit map bounds
 const MapBounds = ({ positions }) => {
   const map = useMap();
- 
+  
   useEffect(() => {
     if (positions && positions.length > 0) {
       const bounds = L.latLngBounds(positions);
       map.fitBounds(bounds, { padding: [20, 20] });
     }
   }, [positions, map]);
- 
+  
   return null;
 };
 
 // OSRM Route component for historical routes
 const OSRMRoute = ({ coordinates, color = '#6366f1' }) => {
   const [routeCoordinates, setRouteCoordinates] = useState([]);
- 
+  
   useEffect(() => {
     if (!coordinates || coordinates.length < 2) return;
-   
+    
     const fetchRoute = async () => {
       try {
         const start = coordinates[0];
         const end = coordinates[coordinates.length - 1];
-       
+        
         const osrmUrl = `https://router.project-osrm.org/route/v1/walking/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
-       
+        
         const response = await fetch(osrmUrl);
         const data = await response.json();
-       
+        
         if (data.routes && data.routes[0]) {
           const routeGeometry = data.routes[0].geometry.coordinates;
           const leafletCoords = routeGeometry.map(coord => [coord[1], coord[0]]);
@@ -126,12 +124,12 @@ const OSRMRoute = ({ coordinates, color = '#6366f1' }) => {
         setRouteCoordinates(coordinates);
       }
     };
-   
+    
     fetchRoute();
   }, [coordinates]);
 
   if (routeCoordinates.length === 0) return null;
- 
+  
   return (
     <Polyline
       positions={routeCoordinates}
@@ -145,7 +143,7 @@ const OSRMRoute = ({ coordinates, color = '#6366f1' }) => {
 const LiveTrackingPage = () => {
   // Dynamic configuration hook
   const dynamicConfig = useDynamicConfig();
- 
+  
   // State management
   const [surveyors, setSurveyors] = useState([]);
   const [statusMap, setStatusMap] = useState({});
@@ -164,7 +162,19 @@ const LiveTrackingPage = () => {
   const [project, setProject] = useState('');
   const [surveyorSearch, setSurveyorSearch] = useState('');
 
-  // ❌ REMOVED: All state related to popups is no longer needed.
+  // Error state for showing messages when buttons are clicked
+  const [showSurveyorError, setShowSurveyorError] = useState(false);
+  const [showDateError, setShowDateError] = useState(false);
+  const [showNoDataError, setShowNoDataError] = useState(false);
+
+  // Function to hide error messages after a delay
+  const hideErrorMessages = useCallback(() => {
+    setTimeout(() => {
+      setShowSurveyorError(false);
+      setShowDateError(false);
+      setShowNoDataError(false);
+    }, 3000); // Hide after 3 seconds
+  }, []);
 
   // Surveyor Management state
   const [modalOpen, setModalOpen] = useState(false);
@@ -245,11 +255,11 @@ const groupedSurveyors = useMemo(() => {
   });
   return groups;
 }, [filteredSurveyors]);
- 
+  
   // Polling refs (WebSocket removed - using REST API only)
   const statusIntervalRef = useRef(null);
   const liveLocationIntervalRef = useRef(null);
- 
+  
   // API helper function
   const apiCall = useCallback(async (endpoint, options = {}) => {
     try {
@@ -259,7 +269,7 @@ const groupedSurveyors = useMemo(() => {
       //const url = endpoint; // Use a relative path so the proxy can work
 
       console.log(`Making API call to: ${url}`);
-     
+      
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -270,11 +280,11 @@ const groupedSurveyors = useMemo(() => {
         mode: 'cors',
         ...options,
       });
-     
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-     
+      
       const data = await response.json();
       console.log(`API response from ${endpoint}:`, data);
       return data;
@@ -291,9 +301,9 @@ const groupedSurveyors = useMemo(() => {
       console.log('Loading surveyors...');
       setLoading(true);
       setError('');
-     
+      
       let endpoint = '/api/surveyors';
-     
+      
       // Use backend filter endpoint if filters are applied
       if (city || project) {
         const params = new URLSearchParams();
@@ -301,26 +311,26 @@ const groupedSurveyors = useMemo(() => {
         if (project) params.append('project', project);
         endpoint = `/api/surveyors/filter?${params.toString()}`;
       }
-     
+      
       const data = await apiCall(endpoint);
-     
+      
       // Filter out admin accounts - only show actual surveyors
-      const filteredSurveyors = data.filter(surveyor =>
-        surveyor.id &&
+      const filteredSurveyors = data.filter(surveyor => 
+        surveyor.id && 
         !surveyor.id.toLowerCase().includes('admin') &&
         !surveyor.username?.toLowerCase().includes('admin')
       );
-     
+      
       setSurveyors(filteredSurveyors);
       console.log('Filtered surveyors (excluding admin):', filteredSurveyors);
-     
+      
     } catch (err) {
       console.error('Failed to load surveyors:', err);
-     
+      
       // Fallback to demo data with dynamic cities and projects
       const cities = dynamicConfig.getDropdownOptions('cities');
       const projects = dynamicConfig.getDropdownOptions('projects');
-     
+      
       const mockSurveyors = [
         {
           id: 'SUR009',
@@ -344,10 +354,10 @@ const groupedSurveyors = useMemo(() => {
           username: 'priya_sharma'
         }
       ];
-     
+      
       setSurveyors(mockSurveyors);
       setError('Using demo data - Backend not available');
-     
+      
       // Also set mock status immediately
       const mockStatus = {
         'SUR009': 'Online',
@@ -365,7 +375,7 @@ const groupedSurveyors = useMemo(() => {
     try {
       console.log('Fetching surveyor status...');
       const data = await apiCall('/api/surveyors/status');
-     
+      
       // Filter status to only include actual surveyors (not admin)
       const filteredStatus = {};
       Object.keys(data).forEach(surveyorId => {
@@ -373,12 +383,12 @@ const groupedSurveyors = useMemo(() => {
           filteredStatus[surveyorId] = data[surveyorId];
         }
       });
-     
+      
       setStatusMap(filteredStatus);
       console.log('Filtered status map:', filteredStatus);
     } catch (err) {
       console.error('Failed to load status:', err);
-     
+      
       // Mock status for actual surveyors only
       const mockStatus = {};
       surveyors.forEach(surveyor => {
@@ -400,16 +410,16 @@ const groupedSurveyors = useMemo(() => {
   useEffect(() => {
     if (surveyors.length > 0) {
       loadStatus();
-     
+      
       if (statusIntervalRef.current) {
         clearInterval(statusIntervalRef.current);
       }
-     
+      
       statusIntervalRef.current = setInterval(() => {
         loadStatus();
       }, config.refreshInterval);
     }
-   
+    
     return () => {
       if (statusIntervalRef.current) {
         clearInterval(statusIntervalRef.current);
@@ -422,18 +432,18 @@ const groupedSurveyors = useMemo(() => {
     console.log('🔄 Starting location polling for surveyor:', surveyorId);
     setConnectionStatus('Polling');
     setError('');
-   
+    
     // Clear any existing interval
     if (liveLocationIntervalRef.current) {
       clearInterval(liveLocationIntervalRef.current);
     }
-   
+    
     // Function to fetch latest location
     const fetchLatestLocation = async () => {
       try {
         console.log('📍 Fetching latest location for:', surveyorId);
         const data = await apiCall(`/api/location/${surveyorId}/latest`);
-       
+        
         if (data && data.latitude && data.longitude) {
           const newLocation = {
             lat: data.latitude,
@@ -441,46 +451,56 @@ const groupedSurveyors = useMemo(() => {
             timestamp: new Date(data.timestamp),
             surveyorId: data.surveyorId
           };
-         
+          
           console.log('✅ Latest location received:', newLocation);
           setLiveLocation(newLocation);
           setConnectionStatus('Connected');
-         
+          
           // ❌ REMOVED: No trail for live tracking - only moving pin
         } else {
           console.log('⚠️ No location data found for surveyor:', surveyorId);
+          setAlertDialogTitle('⚠️ No Data Found');
+          setAlertDialogMessage(`No location data found for surveyor: ${surveyorId}`);
+          setAlertDialogOpen(true);
         }
       } catch (err) {
         console.error('❌ Error fetching latest location:', err);
         setError('Failed to fetch latest location data');
       }
     };
-   
+    
     // Fetch immediately
     fetchLatestLocation();
-   
+    
     // ✅ OPTIMIZED: Fetch every 30 seconds to catch mobile app's 10-minute updates quickly
     liveLocationIntervalRef.current = setInterval(fetchLatestLocation, 30000);
-   
+    
   }, [apiCall]);
 
   // ✅ NEW: Stop location polling
   const stopLocationPolling = useCallback(() => {
     console.log('🛑 Stopping location polling');
-   
+    
     if (liveLocationIntervalRef.current) {
       clearInterval(liveLocationIntervalRef.current);
       liveLocationIntervalRef.current = null;
     }
-   
+    
     setConnectionStatus('Disconnected');
     setLiveLocation(null);
   }, []);
 
-  // ✅ UPDATED: Now uses window.alert() for validation
+  // ✅ NEW: Toggle live tracking with polling
   const toggleLiveTracking = useCallback(() => {
+    // Reset all error states
+    setShowSurveyorError(false);
+    setShowDateError(false);
+    setShowNoDataError(false);
+
     if (!selectedSurveyor) {
-      window.alert('Please select a surveyor before starting live tracking.');
+      setAlertDialogTitle('⚠️ Validation Error');
+      setAlertDialogMessage('Please select a surveyor first');
+      setAlertDialogOpen(true);
       return;
     }
 
@@ -501,69 +521,122 @@ const groupedSurveyors = useMemo(() => {
     }
   }, [selectedSurveyor, isLiveTracking, stopLocationPolling, startLocationPolling]);
 
-  // ✅ UPDATED: Now uses window.alert() for validation and no-data messages
-  const fetchHistoricalRoute = useCallback(async () => {
-    if (!selectedSurveyor) {
-      window.alert('Please select a surveyor to view historical data.');
-      return;
-    }
-   
-    if (!fromDate || !toDate) {
-      window.alert('Please select both a "From" and "To" date to fetch historical data.');
-      return;
-    }
-   
-    setLoading(true);
-    setError('');
-    setHistoricalRoute([]);
-    setLiveLocation(null);
-    setLiveTrail([]);
+  // Fetch historical route with proper date formatting
+  
+    // Fetch Historical
 
-    try {
-      const startUTC = new Date(fromDate.getTime() - (fromDate.getTimezoneOffset() * 60000));
-      const endUTC = new Date(toDate.getTime() - (toDate.getTimezoneOffset() * 60000));
-     
-      const startFormatted = startUTC.toISOString();
-      const endFormatted = endUTC.toISOString();
-     
-      const url = `/api/location/${selectedSurveyor}/track?start=${encodeURIComponent(startFormatted)}&end=${encodeURIComponent(endFormatted)}`;
-      const response = await apiCall(url);
-      const data = Array.isArray(response) ? response : response?.content || [];
-     
-      if (data.length > 0) {
-        const routePoints = data.map(point => ({
-          lat: point.latitude,
-          lng: point.longitude,
-          timestamp: new Date(point.timestamp)
-        }));
-       
-        setHistoricalRoute(routePoints);
-       
-        if (routePoints.length > 1) {
-          const start = routePoints[0];
-          const end = routePoints[routePoints.length - 1];
-          const googleMapsUrl = `https://www.google.com/maps/dir/${start.lat},${start.lng}/${end.lat},${end.lng}/?travelmode=driving&dir_action=navigate`;
-          window.open(googleMapsUrl, '_blank', 'noopener,noreferrer');
-        }
-      } else {
-        window.alert(`No location data was found for surveyor "${selectedSurveyor}" in the selected time range.`);
-      }
-    } catch (error) {
-      console.error('Failed to fetch track data:', error);
-      setError('Demo mode: Showing simulated historical route');
-      const demoRoute = Array.from({ length: 5 }, (_, i) => {
-        const timeOffset = (toDate.getTime() - fromDate.getTime()) * (i / 4);
-        return {
-          lat: 17.4010007 + (Math.random() - 0.5) * 0.01,
-          lng: 78.5643879 + (Math.random() - 0.5) * 0.01,
-          timestamp: new Date(fromDate.getTime() + timeOffset)
-        };
-      });
-      setHistoricalRoute(demoRoute);
-    } finally {
+const fetchHistoricalRoute = useCallback(async () => {
+  // Reset all error states
+  setShowSurveyorError(false);
+  setShowDateError(false);
+  setShowNoDataError(false);
+
+  if (!selectedSurveyor) {
+    setAlertDialogTitle('⚠️ Validation Error');
+    setAlertDialogMessage('Please select a surveyor first');
+    setAlertDialogOpen(true);
+    return;
+  }
+  
+  setLoading(true);
+  setError('');
+  setHistoricalRoute([]);
+  setLiveLocation(null);
+  setLiveTrail([]);
+
+  try {
+    // Convert dates to UTC and format as ISO strings
+    if (!fromDate || !toDate) {
+      setAlertDialogTitle('⚠️ Validation Error');
+      setAlertDialogMessage('Please select both start and end dates');
+      setAlertDialogOpen(true);
       setLoading(false);
+      return;
     }
-  }, [selectedSurveyor, fromDate, toDate, apiCall]);
+    
+    const startUTC = new Date(fromDate.getTime() - (fromDate.getTimezoneOffset() * 60000));
+    const endUTC = new Date(toDate.getTime() - (toDate.getTimezoneOffset() * 60000));
+    
+    const startFormatted = startUTC.toISOString();
+    const endFormatted = endUTC.toISOString();
+    
+    console.log('Fetching historical data for:', {
+      surveyor: selectedSurveyor,
+      start: startFormatted,
+      end: endFormatted
+    });
+    
+    const url = `/api/location/${selectedSurveyor}/track?start=${encodeURIComponent(startFormatted)}&end=${encodeURIComponent(endFormatted)}`;
+    console.log('API URL:', url);
+    
+    const response = await apiCall(url);
+    console.log('Raw API response:', response);
+
+    // Handle both response formats:
+    // 1. Direct array (localhost) 
+    // 2. Spring Data REST paginated { content: [...] } (production)
+    const data = Array.isArray(response) ? response : response?.content || [];
+    
+    console.log('Processed data:', data);
+    
+    if (data.length > 0) {
+      const routePoints = data.map(point => ({
+        lat: point.latitude,
+        lng: point.longitude,
+        timestamp: new Date(point.timestamp) // Convert to Date object
+      }));
+      
+      setHistoricalRoute(routePoints);
+      console.log('Route points processed:', routePoints.length);
+      
+      // ✅ IMPROVED: Enhanced Google Maps URL with route info and distance
+      if (routePoints.length > 1) {
+        const start = routePoints[0];
+        const end = routePoints[routePoints.length - 1];
+        
+        // Calculate approximate distance for display
+        const distance = calculateDistance(start.lat, start.lng, end.lat, end.lng);
+        console.log(`📏 Calculated route distance: ${distance.toFixed(2)} km`);
+        
+        // Enhanced Google Maps URL with driving directions
+        const googleMapsUrl = `https://www.google.com/maps/dir/${start.lat},${start.lng}/${end.lat},${end.lng}/?travelmode=driving&dir_action=navigate`;
+        window.open(googleMapsUrl, '_blank', 'noopener,noreferrer');
+        
+        // Show user-friendly message with route info
+        const routeInfo = `📍 Route: ${routePoints.length} points • ~${distance.toFixed(1)} km • ${formatTime(routePoints[0].timestamp)} to ${formatTime(end.timestamp)}`;
+        console.log(routeInfo);
+      }
+    } else {
+      setError('');
+      setAlertDialogTitle('⚠️ No Data Found');
+      setAlertDialogMessage('No location data found for the selected time range');
+      setAlertDialogOpen(true);
+    }
+  } catch (error) {
+    console.error('Failed to fetch track data:', error);
+    
+    // Fallback demo data with proper timestamps
+    const demoRoute = Array.from({ length: 5 }, (_, i) => {
+      const timeOffset = (toDate - fromDate) * (i / 4);
+      return {
+        lat: 17.4010007 + (Math.random() - 0.5) * 0.01,
+        lng: 78.5643879 + (Math.random() - 0.5) * 0.01,
+        timestamp: new Date(fromDate.getTime() + timeOffset)
+      };
+    });
+    
+    setHistoricalRoute(demoRoute);
+    setError('Demo mode: Showing simulated historical route');
+  } finally {
+    setLoading(false);
+  }
+}, [selectedSurveyor, fromDate, toDate, apiCall]);
+
+
+
+
+
+
 
   // Get map center and positions for bounds
   const getMapData = () => {
@@ -579,7 +652,7 @@ const groupedSurveyors = useMemo(() => {
         positions: routePositions
       };
     }
-   
+    
     // Default center from dynamic configuration
     const mapConfig = dynamicConfig.getMapConfig();
     return {
@@ -593,6 +666,11 @@ const groupedSurveyors = useMemo(() => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMsg, setSnackbarMsg] = useState('');
   const [warningOpen, setWarningOpen] = useState(false);
+  
+  // Alert Dialog state for validation messages
+  const [alertDialogOpen, setAlertDialogOpen] = useState(false);
+  const [alertDialogMessage, setAlertDialogMessage] = useState('');
+  const [alertDialogTitle, setAlertDialogTitle] = useState('');
 
   return (
     <div style={{
@@ -602,8 +680,6 @@ const groupedSurveyors = useMemo(() => {
       background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
       fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
     }}>
-      {/* ❌ REMOVED: The AlertPopup component usage has been removed from here. */}
-     
       {/* Header Section (Top Bar) */}
       <div style={{
         background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
@@ -728,6 +804,10 @@ const groupedSurveyors = useMemo(() => {
             onChange={e => {
               const value = e.target.value;
               setSelectedSurveyor(value);
+              // Hide surveyor error when user selects a surveyor
+              if (value) {
+                setShowSurveyorError(false);
+              }
               const found = surveyors.find(s => s.id === value);
               if (found) {
                 setCity(found.city || '');
@@ -816,10 +896,67 @@ const groupedSurveyors = useMemo(() => {
           >
             Historical
           </button>
+          {/* Alert messages displayed at top center of screen */}
+          <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 2000, width: '100%', display: 'flex', justifyContent: 'center' }}>
+            {showSurveyorError && (
+              <div style={{
+                position: 'relative',
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                padding: '1rem 1.5rem',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                color: '#dc2626',
+                fontWeight: 500,
+                fontSize: '0.9rem',
+                border: '1px solid #dc2626',
+                marginBottom: '10px',
+                maxWidth: '400px',
+                textAlign: 'center',
+              }}>
+                ⚠️ Please select a surveyor first
+              </div>
+            )}
+            {showDateError && (
+              <div style={{
+                position: 'relative',
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                padding: '1rem 1.5rem',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                color: '#dc2626',
+                fontWeight: 500,
+                fontSize: '0.9rem',
+                border: '1px solid #dc2626',
+                marginBottom: '10px',
+                maxWidth: '400px',
+                textAlign: 'center',
+              }}>
+                ⚠️ Please select both start and end dates
+              </div>
+            )}
+            {showNoDataError && (
+              <div style={{
+                position: 'relative',
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                padding: '1rem 1.5rem',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                color: '#dc2626',
+                fontWeight: 500,
+                fontSize: '0.9rem',
+                border: '1px solid #dc2626',
+                marginBottom: '10px',
+                maxWidth: '400px',
+                textAlign: 'center',
+              }}>
+                ⚠️ No location data found for surveyor: {selectedSurveyor}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       {/* Error Display - Floating on Left Side */}
-      {error && (
+      {error && error !== 'No location data found for the selected time range' && (
         <div style={{
           position: 'absolute',
           bottom: '20px',
@@ -854,7 +991,7 @@ const groupedSurveyors = useMemo(() => {
         >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='© <a href="https://www.openstreetmap.org/copyright>OpenStreetMap</a> contributors'
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
 
           {/* 🟢 Live Location Marker */}
@@ -876,6 +1013,8 @@ const groupedSurveyors = useMemo(() => {
               </Popup>
             </Marker>
           )}
+
+          {/* ❌ REMOVED: No lines for live tracking - only moving pin */}
 
           {/* 🔵 Blue Route - Full Route Line (Historical) */}
           {historicalRoute.length > 1&& (
@@ -953,7 +1092,7 @@ const groupedSurveyors = useMemo(() => {
               border: '1.5px solid rgba(59,130,246,0.18)',
               boxShadow: '0 4px 24px rgba(30,64,175,0.10)',
               minWidth: '260px',
-              zIndex: 1000,
+              zIndex: 1000, // CHANGED: Increased z-index to ensure this panel is on top of the map
               backdropFilter: 'blur(8px)',
               color: '#222',
               fontWeight: 500,
@@ -991,6 +1130,7 @@ const groupedSurveyors = useMemo(() => {
       </div>
       {/* Custom CSS */}
       <style>{`
+        /* --- REPLACED: Updated and comprehensive styles for the DatePicker --- */
         .date-picker { width: 100% !important; box-sizing: border-box; padding: 0.5rem 1rem !important; border-radius: 8px !important; border: 1.5px solid #e5e7eb !important; font-size: 1.05rem !important; font-weight: 500 !important; background: #ffffff !important; cursor: pointer; }
         .date-picker::placeholder { color: #6b7280; }
         .date-picker:focus { border-color: #3b82f6 !important; outline: none !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important; }
@@ -1092,7 +1232,7 @@ const groupedSurveyors = useMemo(() => {
                   onClick={handleAddClick}
                   style={{
                     background: 'linear-gradient(135deg, #10b981 0%, #1e40af 100%)',
-                    color: '#fff',
+                    color: '#fff', 
                     border: 'none',
                     borderRadius: '12px',
                     padding: '0.75rem 1.5rem',
@@ -1223,6 +1363,70 @@ const groupedSurveyors = useMemo(() => {
           ⚠️ No location data found for the selected time range
         </Alert>
       </Snackbar>
+      {/* Top Alert Dialog for Validation Messages */}
+      <Dialog
+        open={alertDialogOpen}
+        onClose={() => setAlertDialogOpen(false)}
+        maxWidth="xs"
+        PaperProps={{
+          style: {
+            position: 'fixed',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            margin: 0,
+            borderRadius: '12px',
+            padding: '1rem 1.5rem',
+            textAlign: 'center',
+            boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+            minWidth: '320px',
+            maxWidth: '450px'
+          }
+        }}
+        BackdropProps={{
+          style: {
+            backgroundColor: 'transparent'
+          }
+        }}
+      >
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem'
+        }}>
+          <div style={{
+            fontSize: '1.1rem',
+            color: '#dc2626',
+            fontWeight: 600,
+            flex: 1
+          }}>
+            {alertDialogMessage}
+          </div>
+          <Button
+            onClick={() => setAlertDialogOpen(false)}
+            variant="contained"
+            size="small"
+            sx={{
+              background: '#3b82f6',
+              color: '#fff',
+              borderRadius: '8px',
+              padding: '0.4rem 1rem',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              textTransform: 'none',
+              minWidth: 'auto',
+              boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+              '&:hover': {
+                background: '#2563eb',
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)'
+              }
+            }}
+          >
+            OK
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 };
