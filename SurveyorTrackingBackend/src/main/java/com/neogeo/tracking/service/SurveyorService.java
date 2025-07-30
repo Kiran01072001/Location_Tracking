@@ -99,6 +99,9 @@ public class SurveyorService {
             response.put("surveyor", surveyor);
             // Update the activity status when authenticated (mobile app login)
             updateSurveyorActivity(surveyor.getId());
+            // Persist last activity timestamp in DB
+            surveyor.setLastActivityTimestamp(java.time.Instant.now());
+            repository.save(surveyor);
         } else {
             response.put("status", 401);
             response.put("authenticated", false);
@@ -151,6 +154,12 @@ public class SurveyorService {
      */
     public void updateSurveyorActivity(String surveyorId) {
         lastActivityMap.put(surveyorId, Instant.now());
+        // Also persist last activity timestamp in DB
+        Surveyor surveyor = repository.findById(surveyorId).orElse(null);
+        if (surveyor != null) {
+            surveyor.setLastActivityTimestamp(java.time.Instant.now());
+            repository.save(surveyor);
+        }
     }
     
     /**
@@ -161,7 +170,13 @@ public class SurveyorService {
     public boolean isSurveyorOnline(String surveyorId) {
         Instant lastActivity = lastActivityMap.get(surveyorId);
         if (lastActivity == null) {
-            return false;
+            // Fallback to DB timestamp if in-memory is missing
+            Surveyor surveyor = repository.findById(surveyorId).orElse(null);
+            if (surveyor != null && surveyor.getLastActivityTimestamp() != null) {
+                lastActivity = surveyor.getLastActivityTimestamp();
+            } else {
+                return false;
+            }
         }
         
         long secondsSinceLastActivity = Instant.now().getEpochSecond() - lastActivity.getEpochSecond();

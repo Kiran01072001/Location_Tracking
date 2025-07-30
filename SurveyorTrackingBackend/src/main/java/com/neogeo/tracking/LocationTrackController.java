@@ -112,6 +112,8 @@ public class LocationTrackController {
             try {
                 broadcastLocation(message);
                 saveLocation(message);
+                // Update surveyor activity timestamp on location update
+                surveyorService.updateSurveyorActivity(message.getSurveyorId());
                 return ResponseEntity.ok("Location updated");
             } catch (JsonProcessingException e) {
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Processing error");
@@ -138,12 +140,27 @@ public class LocationTrackController {
     }
 
     private void saveLocation(LiveLocationMessage message) {
-        repository.save(new LocationTrack(
-            message.getSurveyorId(),
-            message.getLatitude(),
-            message.getLongitude(),
-            message.getTimestamp() != null ? message.getTimestamp() : Instant.now(),
-            null
-        ));
+        try {
+            Instant timestamp;
+            if (message.getTimestamp() != null) {
+                timestamp = message.getTimestamp();
+            } else {
+                timestamp = Instant.now();
+            }
+            LocationTrack locationTrack = new LocationTrack(
+                message.getSurveyorId(),
+                message.getLatitude(),
+                message.getLongitude(),
+                timestamp,
+                null
+            );
+            repository.save(locationTrack);
+            System.out.printf("Saved location for surveyor %s at %s (%.6f, %.6f)%n",
+                message.getSurveyorId(), timestamp.toString(), message.getLatitude(), message.getLongitude());
+        } catch (Exception e) {
+            System.err.printf("Failed to save location for surveyor %s: %s%n",
+                message.getSurveyorId(), e.getMessage());
+            throw e;
+        }
     }
 }

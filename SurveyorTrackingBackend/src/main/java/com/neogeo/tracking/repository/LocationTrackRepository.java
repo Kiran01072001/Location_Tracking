@@ -55,4 +55,7 @@ public interface LocationTrackRepository extends JpaRepository<LocationTrack, Lo
     // Find locations within date range (changed to Instant) with pagination
     Page<LocationTrack> findBySurveyorIdAndTimestampBetweenOrderByTimestampAsc(
         String surveyorId, Instant start, Instant end, Pageable pageable);
+
+    // Delete all location tracks for a surveyor
+    void deleteBySurveyorId(String surveyorId);
 }

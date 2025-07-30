@@ -2,6 +2,7 @@ package com.neogeo.tracking.model;
 
 import jakarta.persistence.*;
 import java.util.Objects;
+import java.time.Instant;
 
 @Entity
 @Table(name = "surveyor")
@@ -25,6 +26,9 @@ public class Surveyor {
     
     @Column(length = 255)
     private String password;
+
+    @Column(name = "last_activity_timestamp")
+    private Instant lastActivityTimestamp;
     
     @Transient
     private boolean online = false;
@@ -116,6 +120,14 @@ public class Surveyor {
 
     public void setOnline(boolean online) {
         this.online = online;
+    }
+
+    public Instant getLastActivityTimestamp() {
+        return lastActivityTimestamp;
+    }
+
+    public void setLastActivityTimestamp(Instant lastActivityTimestamp) {
+        this.lastActivityTimestamp = lastActivityTimestamp;
     }
 
     // Equals, hashCode, toString
