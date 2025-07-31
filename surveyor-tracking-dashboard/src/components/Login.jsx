@@ -17,7 +17,7 @@ const Login = ({ onLogin }) => {
     if (error) setError('');
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!credentials.username || !credentials.password) {
       setError('Please enter both username and password');
@@ -25,26 +25,17 @@ const Login = ({ onLogin }) => {
     }
 
     setLoading(true);
-    try {
-      const config = await import('../config').then(module => module.default);
-      console.log('🔧 LOGIN FIX: Using /api/surveyors/login endpoint');
-      const response = await fetch(`${config.backendHost}/api/surveyors/login`, {  
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials),
-      });
-      
-      const data = await response.json();
-      if (response.ok && data.success) {
-        onLogin(data.surveyor);
-      } else {
-        setError(data.message || 'Invalid credentials');
-      }
-    } catch (err) {
-      setError('Login failed. Please try again.');
-    } finally {
-      setLoading(false);
+    
+    // Static login validation
+    if (credentials.username === 'admin' && credentials.password === 'admin123') {
+      onLogin({ username: 'admin', admin: true });
+    } else if (credentials.username === 'user' && credentials.password === 'user123') {
+      onLogin({ username: 'user', admin: false });
+    } else {
+      setError('Invalid credentials');
     }
+    
+    setLoading(false);
   };
 
   return (
