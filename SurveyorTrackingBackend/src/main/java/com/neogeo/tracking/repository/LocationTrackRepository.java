@@ -1,3 +1,5 @@
+
+
 package com.neogeo.tracking.repository;
 
 import java.time.Instant;  // Changed from LocalDateTime
@@ -59,3 +61,7 @@ public interface LocationTrackRepository extends JpaRepository<LocationTrack, Lo
     // Delete all location tracks for a surveyor
     void deleteBySurveyorId(String surveyorId);
 }
+
+
+
+

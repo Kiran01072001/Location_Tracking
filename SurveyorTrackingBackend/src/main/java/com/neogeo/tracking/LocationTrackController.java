@@ -63,6 +63,13 @@ public class LocationTrackController {
         return locationTrackService.filterSurveyorsExcludingAdmin(city, project, status);
     }
 
+    @Operation(summary = "Get all surveyors with latest locations")
+    @GetMapping("/surveyors/with-locations")
+    public ResponseEntity<List<Map<String, Object>>> getAllSurveyorsWithLatestLocations() {
+        List<Map<String, Object>> surveyorsWithLocations = locationTrackService.getAllSurveyorsWithLatestLocations();
+        return ResponseEntity.ok(surveyorsWithLocations);
+    }
+
     @Operation(summary = "Get latest location")
     @GetMapping("/location/{surveyorId}/latest")
     public ResponseEntity<LocationTrack> getLatestLocation(
@@ -90,6 +97,21 @@ public class LocationTrackController {
 
         Pageable pageable = PageRequest.of(page, size);
         Page<LocationTrack> tracks = locationTrackService.getTrackHistoryPaged(surveyorId, start, end, pageable);
+        return tracks.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(tracks);
+    }
+
+    @Operation(summary = "Get enhanced location history with interpolated points")
+    @GetMapping("/location/{surveyorId}/enhanced-track")
+    public ResponseEntity<List<LocationTrack>> getEnhancedTrackHistory(
+            @PathVariable String surveyorId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant end) {
+
+        if (start.isAfter(end)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        List<LocationTrack> tracks = locationTrackService.getEnhancedTrackHistory(surveyorId, start, end);
         return tracks.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(tracks);
     }
 
@@ -141,12 +163,29 @@ public class LocationTrackController {
 
     private void saveLocation(LiveLocationMessage message) {
         try {
+            // Validate input data
+            if (message.getSurveyorId() == null || message.getSurveyorId().trim().isEmpty()) {
+                System.err.println("Invalid surveyor ID - cannot save location");
+                return;
+            }
+            
+            // Validate coordinates
+            if (message.getLatitude() < -90 || message.getLatitude() > 90 ||
+                message.getLongitude() < -180 || message.getLongitude() > 180) {
+                System.err.printf("Invalid coordinates for surveyor %s: lat=%.6f, lon=%.6f%n",
+                    message.getSurveyorId(), message.getLatitude(), message.getLongitude());
+                return;
+            }
+            
             Instant timestamp;
             if (message.getTimestamp() != null) {
                 timestamp = message.getTimestamp();
             } else {
                 timestamp = Instant.now();
+                System.out.printf("No timestamp provided for surveyor %s, using current time%n", 
+                    message.getSurveyorId());
             }
+            
             LocationTrack locationTrack = new LocationTrack(
                 message.getSurveyorId(),
                 message.getLatitude(),
@@ -154,12 +193,16 @@ public class LocationTrackController {
                 timestamp,
                 null
             );
-            repository.save(locationTrack);
-            System.out.printf("Saved location for surveyor %s at %s (%.6f, %.6f)%n",
-                message.getSurveyorId(), timestamp.toString(), message.getLatitude(), message.getLongitude());
+            
+            LocationTrack saved = repository.save(locationTrack);
+            System.out.printf("✅ Successfully saved location ID=%d for surveyor %s at %s (%.6f, %.6f)%n",
+                saved.getId(), message.getSurveyorId(), timestamp.toString(), 
+                message.getLatitude(), message.getLongitude());
+                
         } catch (Exception e) {
-            System.err.printf("Failed to save location for surveyor %s: %s%n",
+            System.err.printf("❌ Failed to save location for surveyor %s: %s%n",
                 message.getSurveyorId(), e.getMessage());
+            e.printStackTrace();
             throw e;
         }
     }

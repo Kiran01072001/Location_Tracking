@@ -1,3 +1,4 @@
+
 package com.neogeo.tracking.repository;
 
 import com.neogeo.tracking.model.Surveyor;
@@ -31,7 +32,7 @@ public interface SurveyorRepository extends JpaRepository<Surveyor, String> {
            "LOWER(s.name) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
     List<Surveyor> searchByAnyField(@Param("searchTerm") String searchTerm);
     
-    @Query("SELECT s FROM Surveyor s WHERE s.id LIKE 'SUR%' AND " +
+    @Query("SELECT s FROM Surveyor s WHERE " +
            "NOT LOWER(s.id) LIKE '%admin%' AND " +
            "(s.username IS NULL OR NOT LOWER(s.username) LIKE '%admin%')")
     List<Surveyor> findAllNonAdminSurveyors();
@@ -46,3 +47,4 @@ public interface SurveyorRepository extends JpaRepository<Surveyor, String> {
     boolean existsByUsernameExcludingId(@Param("username") String username, 
                                       @Param("excludeId") String excludeId);
 }
+

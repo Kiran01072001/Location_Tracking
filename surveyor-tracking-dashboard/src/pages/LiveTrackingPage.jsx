@@ -15,8 +15,8 @@ import { useDynamicConfig } from '../hooks/useDynamicConfig';
 const config = {
   backendHost: 'http://183.82.114.29:6565',
   webSocketUrl: 'http://183.82.114.29:6565/ws/location',
-  refreshInterval: 30000, // 30 seconds
-  liveUpdateInterval: 5000, // 5 seconds for live tracking
+  refreshInterval: 15000, // 15 seconds - faster status updates
+  liveUpdateInterval: 5000, // 5 seconds for live tracking - much more responsive
   handleFetchError: (error, endpoint) => {
     console.error(`Error fetching from ${endpoint}:`, error);
     if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
@@ -379,7 +379,7 @@ const groupedSurveyors = useMemo(() => {
       // Filter status to only include actual surveyors (not admin)
       const filteredStatus = {};
       Object.keys(data).forEach(surveyorId => {
-        if (surveyorId.startsWith('SUR') && !surveyorId.toLowerCase().includes('admin')) {
+        if (!surveyorId.toLowerCase().includes('admin')) {
           filteredStatus[surveyorId] = data[surveyorId];
         }
       });
@@ -392,9 +392,9 @@ const groupedSurveyors = useMemo(() => {
       // Mock status for actual surveyors only
       const mockStatus = {};
       surveyors.forEach(surveyor => {
-        if (surveyor.id.startsWith('SUR')) {
-          // SUR009 should be online based on your data
-          mockStatus[surveyor.id] = surveyor.id === 'SUR009' ? 'Online' : 'Offline';
+        if (!surveyor.id.toLowerCase().includes('admin')) {
+          // First surveyor should be online based on your data
+          mockStatus[surveyor.id] = surveyors.indexOf(surveyor) === 0 ? 'Online' : 'Offline';
         }
       });
       setStatusMap(mockStatus);
@@ -472,8 +472,8 @@ const groupedSurveyors = useMemo(() => {
     // Fetch immediately
     fetchLatestLocation();
     
-    // ✅ UPDATED: Fetch every 10 minutes (600000 ms) as per requirement
-    liveLocationIntervalRef.current = setInterval(fetchLatestLocation, 600000);
+    // ✅ UPDATED: Fetch every 5 seconds (5000 ms) for real-time updates
+    liveLocationIntervalRef.current = setInterval(fetchLatestLocation, config.liveUpdateInterval);
     
   }, [apiCall]);
 
@@ -1438,4 +1438,3 @@ const fetchHistoricalRoute = useCallback(async () => {
 };
 
 export default LiveTrackingPage;
-

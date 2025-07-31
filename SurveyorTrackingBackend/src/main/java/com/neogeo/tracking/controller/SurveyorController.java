@@ -1,3 +1,5 @@
+
+
 package com.neogeo.tracking.controller;
 
 import java.util.List;
@@ -76,26 +78,7 @@ public class SurveyorController {
                .body(response);
     }
     
-    @Operation(summary = "Authenticate admin (Dashboard)", 
-              description = "Validates credentials for dashboard login without setting online status")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Authentication successful"),
-        @ApiResponse(responseCode = "401", description = "Invalid credentials"),
-        @ApiResponse(responseCode = "404", description = "Surveyor not found")
-    })
-    @PostMapping("/admin/login")
-    public ResponseEntity<Map<String, Object>> authenticateAdmin(
-            @Parameter(description = "Login credentials (username and password)", required = true)
-            @RequestBody Map<String, String> credentials) {
-        
-        Map<String, Object> response = surveyorService.authenticateWithoutActivityUpdate(
-            credentials.get("username"),
-            credentials.get("password")
-        );
-        
-        return ResponseEntity.status((int) response.get("status"))
-               .body(response);
-    }
+
     
     @Operation(summary = "Check username availability",
               description = "Checks if a username is available for registration")
@@ -180,3 +163,4 @@ public class SurveyorController {
         return ResponseEntity.ok(projects);
     }
 }
+

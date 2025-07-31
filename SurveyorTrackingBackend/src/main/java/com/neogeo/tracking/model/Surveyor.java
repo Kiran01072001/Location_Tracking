@@ -1,3 +1,4 @@
+
 package com.neogeo.tracking.model;
 
 import jakarta.persistence.*;
@@ -102,7 +103,7 @@ public class Surveyor {
     }
 
     public boolean isValidSurveyor() {
-        return id != null && id.startsWith("SUR") && !isAdmin();
+        return id != null && !id.isBlank() && !isAdmin();
     }
 
     // Helper methods

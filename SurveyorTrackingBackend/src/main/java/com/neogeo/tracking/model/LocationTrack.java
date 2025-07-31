@@ -1,4 +1,3 @@
-
 package com.neogeo.tracking.model;
 
 import jakarta.persistence.*;
@@ -84,3 +83,5 @@ public class LocationTrack {
         this.geom = geom;
     }
 }
+
+

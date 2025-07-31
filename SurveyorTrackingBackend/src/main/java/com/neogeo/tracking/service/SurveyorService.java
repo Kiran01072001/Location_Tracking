@@ -10,16 +10,20 @@ import org.springframework.stereotype.Service;
 
 import com.neogeo.tracking.model.Surveyor;
 import com.neogeo.tracking.repository.SurveyorRepository;
+import com.neogeo.tracking.repository.LocationTrackRepository;
 
 @Service
 public class SurveyorService {
     private final SurveyorRepository repository;
+    private final LocationTrackRepository locationTrackRepository;
     private final Map<String, Instant> lastActivityMap = new ConcurrentHashMap<>();
-    // Consider a surveyor online if they've been active in the last 5 minutes
-    private static final long ONLINE_TIMEOUT_SECONDS = 300; // 5 minutes
+    // Consider a surveyor online if they've been active in the last 15 minutes
+    // Mobile app sends GPS every 10 minutes, so 15 minutes gives some buffer
+    private static final long ONLINE_TIMEOUT_SECONDS = 900; // 15 minutes
 
-    public SurveyorService(SurveyorRepository repository) {
+    public SurveyorService(SurveyorRepository repository, LocationTrackRepository locationTrackRepository) {
         this.repository = repository;
+        this.locationTrackRepository = locationTrackRepository;
     }
 
     public List<Surveyor> listAll() {
@@ -111,38 +115,7 @@ public class SurveyorService {
         return response;
     }
 
-    /**
-     * Authenticates a surveyor without updating activity status
-     * Used for dashboard login to avoid marking users as online
-     * @param username The username to authenticate
-     * @param password The password to verify
-     * @return A map containing authentication status, HTTP status code, and surveyor details if successful
-     */
-    public Map<String, Object> authenticateWithoutActivityUpdate(String username, String password) {
-        Map<String, Object> response = new HashMap<>();
-        Surveyor surveyor = repository.findByUsername(username).orElse(null);
 
-        if (surveyor == null) {
-            response.put("status", 404);
-            response.put("message", "Surveyor not found");
-            return response;
-        }
-
-        boolean authenticated = password.equals(surveyor.getPassword());
-
-        if (authenticated) {
-            response.put("status", 200);
-            response.put("authenticated", true);
-            response.put("surveyor", surveyor);
-            // Do NOT update activity status for dashboard login
-        } else {
-            response.put("status", 401);
-            response.put("authenticated", false);
-            response.put("message", "Invalid credentials");
-        }
-
-        return response;
-    }
     
     public boolean isUsernameAvailable(String username) {
         return !repository.existsByUsername(username);
@@ -206,6 +179,8 @@ public class SurveyorService {
      */
     public boolean deleteSurveyorById(String id) {
         if (repository.existsById(id)) {
+            // Delete location tracks for this surveyor
+            locationTrackRepository.deleteBySurveyorId(id);
             repository.deleteById(id);
             return true;
         }

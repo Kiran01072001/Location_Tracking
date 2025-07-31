@@ -1,9 +1,12 @@
+
 package com.neogeo.tracking;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +23,7 @@ import com.neogeo.tracking.service.SurveyorService;
 @Service
 public class LocationTrackService {
 
-    private static final int OFFLINE_THRESHOLD_MINUTES = 5;
+    private static final int OFFLINE_THRESHOLD_MINUTES = 15; // Match with SurveyorService timeout
 
     private final LocationTrackRepository locationTrackRepository;
     private final SurveyorRepository surveyorRepository;
@@ -60,6 +63,38 @@ public class LocationTrackService {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Gets all surveyors with their latest location data
+     * @return List of surveyors with their latest location information
+     */
+    public List<Map<String, Object>> getAllSurveyorsWithLatestLocations() {
+        List<Surveyor> surveyors = getAllSurveyorsExcludingAdmin();
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        for (Surveyor surveyor : surveyors) {
+            Map<String, Object> surveyorData = new HashMap<>();
+            surveyorData.put("surveyor", surveyor);
+            
+            // Get latest location for this surveyor
+            LocationTrack latestLocation = getLatestLocation(surveyor.getId());
+            if (latestLocation != null) {
+                Map<String, Object> locationData = new HashMap<>();
+                locationData.put("latitude", latestLocation.getLatitude());
+                locationData.put("longitude", latestLocation.getLongitude());
+                locationData.put("timestamp", latestLocation.getTimestamp());
+                surveyorData.put("latestLocation", locationData);
+            }
+            
+            // Get online status
+            boolean isOnline = surveyorService.isSurveyorOnline(surveyor.getId());
+            surveyorData.put("online", isOnline);
+            
+            result.add(surveyorData);
+        }
+        
+        return result;
+    }
+
     public LocationTrack getLatestLocation(String surveyorId) {
         try {
             return locationTrackRepository
@@ -88,6 +123,23 @@ public class LocationTrackService {
         return surveyor.getId() != null &&
                !surveyor.getId().toLowerCase().contains("admin") &&
                (surveyor.getUsername() == null || !surveyor.getUsername().toLowerCase().contains("admin"));
+    }
+
+    /**
+     * Get enhanced track history with interpolated points for large gaps
+     */
+    public List<LocationTrack> getEnhancedTrackHistory(String surveyorId, Instant start, Instant end) {
+        List<LocationTrack> originalTracks = fetchLocationTracks(surveyorId, start, end);
+        return ensureCompleteRoute(originalTracks);
+    }
+
+    /**
+     * Public method to ensure complete route data by filling in large gaps between location points
+     * @param tracks Original list of location tracks
+     * @return Enhanced list with interpolated points for large gaps
+     */
+    public List<LocationTrack> ensureCompleteRoutePublic(List<LocationTrack> tracks) {
+        return ensureCompleteRoute(tracks);
     }
 
     private String determineStatus(String surveyorId, Instant threshold) {
