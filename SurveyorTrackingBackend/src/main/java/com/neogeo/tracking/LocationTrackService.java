@@ -23,7 +23,7 @@ import com.neogeo.tracking.service.SurveyorService;
 @Service
 public class LocationTrackService {
 
-    private static final int OFFLINE_THRESHOLD_MINUTES = 15; // Match with SurveyorService timeout
+    private static final int OFFLINE_THRESHOLD_MINUTES = 12; // 12 minutes as per requirements
 
     private final LocationTrackRepository locationTrackRepository;
     private final SurveyorRepository surveyorRepository;
@@ -85,7 +85,7 @@ public class LocationTrackService {
                 surveyorData.put("latestLocation", locationData);
             }
             
-            // Get online status
+            // Get online status based on latest GPS timestamp
             boolean isOnline = surveyorService.isSurveyorOnline(surveyor.getId());
             surveyorData.put("online", isOnline);
             
@@ -143,9 +143,12 @@ public class LocationTrackService {
     }
 
     private String determineStatus(String surveyorId, Instant threshold) {
+        // Check latest GPS timestamp from location_track table
         LocationTrack lastLocation = getLatestLocation(surveyorId);
         boolean isLocationActive = lastLocation != null && 
                                  lastLocation.getTimestamp().isAfter(threshold);
+        
+        // Use the surveyor service method which prioritizes GPS timestamp
         boolean isActiveFromStatus = surveyorService.isSurveyorOnline(surveyorId);
         
         return (isLocationActive || isActiveFromStatus) ? "Online" : "Offline";
@@ -217,15 +220,15 @@ public class LocationTrackService {
             // Calculate time difference in minutes
             long timeDiffMinutes = java.time.Duration.between(prev.getTimestamp(), curr.getTimestamp()).toMinutes();
             
-            // If gap is more than 5 minutes, add interpolated points
-            if (timeDiffMinutes > 5) {
+            // If gap is more than 1 minute, add interpolated points (more granular)
+            if (timeDiffMinutes > 1) {
                 // Calculate distance between points
                 double distance = calculateDistance(prev.getLatitude(), prev.getLongitude(), 
                                                  curr.getLatitude(), curr.getLongitude());
                 
-                // If distance is significant, add intermediate points
-                if (distance > 0.1) { // More than 100 meters
-                    int pointsToAdd = Math.min((int)(timeDiffMinutes / 2), 10); // Add points every 2 minutes, max 10 points
+                // If distance is significant, add intermediate points (reduced threshold for better coverage)
+                if (distance > 0.02) { // More than 20 meters
+                    int pointsToAdd = Math.min((int)(timeDiffMinutes / 1), 20); // Add points every 1 minute, max 20 points
                     
                     for (int j = 1; j <= pointsToAdd; j++) {
                         // Calculate interpolation factor
@@ -236,9 +239,9 @@ public class LocationTrackService {
                         double interpLon = prev.getLongitude() + factor * (curr.getLongitude() - prev.getLongitude());
                         
                         // Calculate intermediate timestamp
-                        Instant interpTime = prev.getTimestamp().plus(
-                            java.time.Duration.between(prev.getTimestamp(), curr.getTimestamp()).multipliedBy((long)(factor * 1000)).toMillis(), 
-                            java.time.temporal.ChronoUnit.MILLIS);
+                        Instant interpTime = prev.getTimestamp().plusMillis(
+                            (long)(factor * java.time.Duration.between(prev.getTimestamp(), curr.getTimestamp()).toMillis())
+                        );
                         
                         // Create and add interpolated point
                         LocationTrack interpPoint = new LocationTrack(
@@ -252,14 +255,11 @@ public class LocationTrackService {
                     }
                 }
             }
-            
-            // Add the current point
             enhancedTracks.add(curr);
         }
-        
         return enhancedTracks;
     }
-    
+
     /**
      * Calculates distance between two points in kilometers
      */
@@ -272,5 +272,67 @@ public class LocationTrackService {
                   Math.sin(dLon/2) * Math.sin(dLon/2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         return R * c;
+    }
+
+    /**
+     * Calculates total distance travelled by a surveyor in kilometers
+     * @param surveyorId The surveyor ID
+     * @return Total distance in kilometers
+     */
+    public double getTotalDistance(String surveyorId) {
+        List<LocationTrack> tracks = locationTrackRepository.findBySurveyorIdOrderByTimestampAsc(surveyorId);
+        if (tracks == null || tracks.size() < 2) {
+            return 0.0;
+        }
+        double totalDistance = 0.0;
+        for (int i = 1; i < tracks.size(); i++) {
+            LocationTrack prev = tracks.get(i - 1);
+            LocationTrack curr = tracks.get(i);
+            totalDistance += calculateDistance(prev.getLatitude(), prev.getLongitude(),
+                                               curr.getLatitude(), curr.getLongitude());
+        }
+        return totalDistance;
+    }
+    
+    /**
+     * Get total count of location points for a surveyor
+     * @param surveyorId The surveyor ID
+     * @return Total number of GPS points stored
+     */
+    public long getLocationCount(String surveyorId) {
+        try {
+            return locationTrackRepository.countBySurveyorId(surveyorId);
+        } catch (Exception e) {
+            System.err.printf("Error getting location count for surveyor %s: %s%n", surveyorId, e.getMessage());
+            return 0;
+        }
+    }
+    
+    /**
+     * Gets projects available in a specific city for cascading filters
+     * @param city The city name
+     * @return List of project names in that city
+     */
+    public List<String> getProjectsByCity(String city) {
+        return surveyorRepository.findByCity(city).stream()
+                .map(Surveyor::getProjectName)
+                .filter(project -> project != null && !project.isBlank())
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Gets cities available for a specific project for cascading filters
+     * @param project The project name
+     * @return List of city names for that project
+     */
+    public List<String> getCitiesByProject(String project) {
+        return surveyorRepository.findByProjectName(project).stream()
+                .map(Surveyor::getCity)
+                .filter(city -> city != null && !city.isBlank())
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
     }
 }

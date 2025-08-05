@@ -124,23 +124,6 @@ public class SurveyorController {
         return ResponseEntity.ok(Map.of("online", isOnline));
     }
 
-    @Operation(summary = "Delete surveyor", description = "Deletes a surveyor by ID")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Surveyor deleted successfully"),
-        @ApiResponse(responseCode = "404", description = "Surveyor not found")
-    })
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSurveyor(
-            @Parameter(description = "Surveyor ID", required = true)
-            @PathVariable String id) {
-        boolean deleted = surveyorService.deleteSurveyorById(id);
-        if (deleted) {
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
     @Operation(summary = "Get all distinct cities", 
               description = "Retrieves a list of all distinct cities from surveyors")
     @ApiResponses(value = {
@@ -161,6 +144,78 @@ public class SurveyorController {
     public ResponseEntity<List<String>> getAllProjects() {
         List<String> projects = surveyorService.getAllDistinctProjects();
         return ResponseEntity.ok(projects);
+    }
+    
+    @Operation(summary = "Get surveyor details by ID", 
+              description = "Retrieves complete surveyor information for cascading dropdowns")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Surveyor found"),
+        @ApiResponse(responseCode = "404", description = "Surveyor not found")
+    })
+    @GetMapping("/{id}/details")
+    public ResponseEntity<Surveyor> getSurveyorDetails(
+            @Parameter(description = "Surveyor ID", required = true)
+            @PathVariable String id) {
+        
+        Surveyor surveyor = surveyorService.findById(id);
+        if (surveyor != null) {
+            return ResponseEntity.ok(surveyor);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+    
+    @Operation(summary = "Get projects by city", 
+              description = "Retrieves projects available in a specific city for cascading dropdowns")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Projects retrieved successfully")
+    })
+    @GetMapping("/city/{city}/projects")
+    public ResponseEntity<List<String>> getProjectsByCity(
+            @Parameter(description = "City name", required = true)
+            @PathVariable String city) {
+        
+        List<String> projects = surveyorService.getProjectsByCity(city);
+        return ResponseEntity.ok(projects);
+    }
+    
+    @Operation(summary = "Get cities by project", 
+              description = "Retrieves cities available for a specific project for cascading dropdowns")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Cities retrieved successfully")
+    })
+    @GetMapping("/project/{project}/cities")
+    public ResponseEntity<List<String>> getCitiesByProject(
+            @Parameter(description = "Project name", required = true)
+            @PathVariable String project) {
+        
+        List<String> cities = surveyorService.getCitiesByProject(project);
+        return ResponseEntity.ok(cities);
+    }
+
+
+    @Operation(summary = "Delete surveyor", description = "Deletes a surveyor by ID")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Surveyor deleted successfully"),
+        @ApiResponse(responseCode = "404", description = "Surveyor not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteSurveyor(
+            @Parameter(description = "Surveyor ID", required = true)
+            @PathVariable String id) {
+        try {
+            boolean deleted = surveyorService.deleteSurveyorById(id);
+            if (deleted) {
+                return ResponseEntity.ok().build();
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            System.err.println("Error deleting surveyor: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }
 

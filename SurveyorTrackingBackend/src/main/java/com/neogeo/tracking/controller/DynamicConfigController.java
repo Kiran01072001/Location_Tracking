@@ -1,6 +1,4 @@
 
-
-
 package com.neogeo.tracking.controller;
 
 import com.neogeo.tracking.service.DynamicConfigService;

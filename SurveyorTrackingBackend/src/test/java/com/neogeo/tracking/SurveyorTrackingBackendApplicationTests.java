@@ -1,4 +1,4 @@
-package com.neogeo.SurveyorTrackingBackend;
+package com.neogeo.tracking;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

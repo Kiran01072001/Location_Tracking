@@ -17,9 +17,9 @@ public class SurveyorService {
     private final SurveyorRepository repository;
     private final LocationTrackRepository locationTrackRepository;
     private final Map<String, Instant> lastActivityMap = new ConcurrentHashMap<>();
-    // Consider a surveyor online if they've been active in the last 15 minutes
-    // Mobile app sends GPS every 10 minutes, so 15 minutes gives some buffer
-    private static final long ONLINE_TIMEOUT_SECONDS = 900; // 15 minutes
+    // Consider a surveyor online if they've been active in the last 12 minutes
+    // This matches the requirement: if last timestamp <= 12 minutes ago → Online
+    private static final long ONLINE_TIMEOUT_SECONDS = 720; // 12 minutes (720 seconds)
 
     public SurveyorService(SurveyorRepository repository, LocationTrackRepository locationTrackRepository) {
         this.repository = repository;
@@ -136,11 +136,23 @@ public class SurveyorService {
     }
     
     /**
-     * Checks if a surveyor is considered online based on their last activity
+     * Checks if a surveyor is considered online based on their last GPS timestamp
      * @param surveyorId The ID of the surveyor
      * @return true if the surveyor has been active recently, false otherwise
      */
     public boolean isSurveyorOnline(String surveyorId) {
+        // Check the latest GPS timestamp from location_track table
+        // This is the most accurate way to determine if a surveyor is online
+        java.util.Optional<com.neogeo.tracking.model.LocationTrack> latestLocation = 
+            locationTrackRepository.findTopBySurveyorIdOrderByTimestampDesc(surveyorId);
+        
+        if (latestLocation.isPresent()) {
+            Instant lastGpsTimestamp = latestLocation.get().getTimestamp();
+            long secondsSinceLastGps = Instant.now().getEpochSecond() - lastGpsTimestamp.getEpochSecond();
+            return secondsSinceLastGps <= ONLINE_TIMEOUT_SECONDS;
+        }
+        
+        // Fallback to in-memory or DB timestamp if no GPS data
         Instant lastActivity = lastActivityMap.get(surveyorId);
         if (lastActivity == null) {
             // Fallback to DB timestamp if in-memory is missing
@@ -172,14 +184,14 @@ public class SurveyorService {
         return statuses;
     }
 
-    /**
+     /**
      * Deletes a surveyor by ID
      * @param id The ID of the surveyor to delete
      * @return true if deleted, false if not found
      */
     public boolean deleteSurveyorById(String id) {
         if (repository.existsById(id)) {
-            // Delete location tracks for this surveyor
+            // Also delete associated location tracks
             locationTrackRepository.deleteBySurveyorId(id);
             repository.deleteById(id);
             return true;
@@ -201,5 +213,42 @@ public class SurveyorService {
      */
     public List<String> getAllDistinctProjects() {
         return repository.findAllDistinctProjects();
+    }
+    
+    /**
+     * Find surveyor by ID
+     * @param id The surveyor ID
+     * @return Surveyor object or null if not found
+     */
+    public Surveyor findById(String id) {
+        return repository.findById(id).orElse(null);
+    }
+    
+    /**
+     * Gets projects available in a specific city
+     * @param city The city name
+     * @return List of project names in that city
+     */
+    public List<String> getProjectsByCity(String city) {
+        return repository.findByCity(city).stream()
+                .map(Surveyor::getProjectName)
+                .filter(project -> project != null && !project.isBlank())
+                .distinct()
+                .sorted()
+                .collect(java.util.stream.Collectors.toList());
+    }
+    
+    /**
+     * Gets cities available for a specific project
+     * @param project The project name
+     * @return List of city names for that project
+     */
+    public List<String> getCitiesByProject(String project) {
+        return repository.findByProjectName(project).stream()
+                .map(Surveyor::getCity)
+                .filter(city -> city != null && !city.isBlank())
+                .distinct()
+                .sorted()
+                .collect(java.util.stream.Collectors.toList());
     }
 }

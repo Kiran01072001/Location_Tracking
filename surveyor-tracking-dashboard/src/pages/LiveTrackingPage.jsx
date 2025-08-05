@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -13,8 +14,8 @@ import { useDynamicConfig } from '../hooks/useDynamicConfig';
 
 // Configuration matching your backend exactly
 const config = {
-  backendHost: 'http://183.82.114.29:6565',
-  webSocketUrl: 'http://183.82.114.29:6565/ws/location',
+  backendHost: 'http://183.82.114.29:9511',
+  webSocketUrl: 'http://183.82.114.29:9511/ws/location',
   refreshInterval: 15000, // 15 seconds - faster status updates
   liveUpdateInterval: 5000, // 5 seconds for live tracking - much more responsive
   handleFetchError: (error, endpoint) => {
@@ -97,6 +98,7 @@ const MapBounds = ({ positions }) => {
   return null;
 };
 
+
 // OSRM Route component for historical routes
 const OSRMRoute = ({ coordinates, color = '#6366f1' }) => {
   const [routeCoordinates, setRouteCoordinates] = useState([]);
@@ -140,6 +142,7 @@ const OSRMRoute = ({ coordinates, color = '#6366f1' }) => {
   );
 };
 
+
 const LiveTrackingPage = () => {
   // Dynamic configuration hook
   const dynamicConfig = useDynamicConfig();
@@ -161,6 +164,10 @@ const LiveTrackingPage = () => {
   const [city, setCity] = useState('');
   const [project, setProject] = useState('');
   const [surveyorSearch, setSurveyorSearch] = useState('');
+  const [cities, setCities] = useState([]); // For cascading filters
+  const [projects, setProjects] = useState([]); // For cascading filters
+  const [projectsForCity, setProjectsForCity] = useState([]); // Projects filtered by selected city
+  const [citiesForProject, setCitiesForProject] = useState([]); // Cities filtered by selected project
 
   // Error state for showing messages when buttons are clicked
   const [showSurveyorError, setShowSurveyorError] = useState(false);
@@ -194,21 +201,30 @@ const LiveTrackingPage = () => {
   };
 
   const handleDeleteClick = async (surveyorId) => {
-    if (window.confirm('Are you sure you want to delete this surveyor?')) {
-      try {
-        const config = await import('../config').then(module => module.default);
-        const response = await fetch(`${config.backendHost}/api/surveyors/${surveyorId}`, {
-          method: 'DELETE',
-        });
-        if (!response.ok) throw new Error('Failed to delete');
-        setSnackbarMsg('✅ Surveyor deleted successfully!');
-        setSnackbarOpen(true);
-        loadSurveyors(); // Refresh the list
-      } catch (error) {
-        console.error('Failed to delete surveyor:', error);
-        setSnackbarMsg('Failed to delete surveyor.');
-        setSnackbarOpen(true);
+    try {
+      // Fetch total distance travelled before delete
+      const config = await import('../config').then(module => module.default);
+      const distanceResponse = await fetch(`${config.backendHost}/api/location/${surveyorId}/distance`);
+      let totalDistance = 0;
+      if (distanceResponse.ok) {
+        const distanceData = await distanceResponse.json();
+        totalDistance = distanceData.totalDistance || 0;
       }
+
+      const confirmDelete = window.confirm(`Are you sure you want to delete this surveyor?\nTotal distance travelled: ${totalDistance.toFixed(2)} km`);
+      if (!confirmDelete) return;
+
+      const response = await fetch(`${config.backendHost}/api/surveyors/${surveyorId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete');
+      setSnackbarMsg('✅ Surveyor deleted successfully!');
+      setSnackbarOpen(true);
+      loadSurveyors(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to delete surveyor:', error);
+      setSnackbarMsg('Failed to delete surveyor.');
+      setSnackbarOpen(true);
     }
   };
 
@@ -228,6 +244,51 @@ const LiveTrackingPage = () => {
   const closeSurveyorManagement = () => {
     setSurveyorManagementOpen(false);
   };
+
+  // ✅ NEW: Handle cascading filter changes
+const handleCityChange = (e) => {
+  const value = e.target.value;
+  setCity(value);
+  
+  // Filter projects based on selected city
+  if (value) {
+    const projectsForCity = [...new Set(
+      surveyors
+        .filter(s => s.city === value)
+        .map(s => s.projectName)
+    )].filter(Boolean);
+    
+    setProjectsForCity(projectsForCity);
+    if (project && !projectsForCity.includes(project)) {
+      setProject('');
+    }
+  } else {
+    setProjectsForCity([]);
+  }
+};
+
+const handleProjectChange = (e) => {
+  const value = e.target.value;
+  setProject(value);
+  
+  // Filter cities based on selected project
+  if (value) {
+    const citiesForProject = [...new Set(
+      surveyors
+        .filter(s => s.projectName === value)
+        .map(s => s.city)
+    )].filter(Boolean);
+    
+    setCitiesForProject(citiesForProject);
+    if (city && !citiesForProject.includes(city)) {
+      setCity('');
+    }
+  } else {
+    setCitiesForProject([]);
+  }
+};
+
+
 
 
   // Add this memoized filtered surveyors list before the groupedSurveyors memo
@@ -472,8 +533,8 @@ const groupedSurveyors = useMemo(() => {
     // Fetch immediately
     fetchLatestLocation();
     
-    // ✅ UPDATED: Fetch every 5 seconds (5000 ms) for real-time updates
-    liveLocationIntervalRef.current = setInterval(fetchLatestLocation, config.liveUpdateInterval);
+    // ✅ UPDATED: Fetch every 30 seconds (30000 ms) for real-time updates as per requirements
+    liveLocationIntervalRef.current = setInterval(fetchLatestLocation, 30000);
     
   }, [apiCall]);
 
@@ -521,12 +582,15 @@ const groupedSurveyors = useMemo(() => {
     }
   }, [selectedSurveyor, isLiveTracking, stopLocationPolling, startLocationPolling]);
 
-
-
-
-
-
+  // Fetch historical route with proper date formatting
   
+    // Fetch Historical
+
+
+
+
+
+
   // Fetch historical route with proper date formatting
   
     // Fetch Historical
@@ -637,6 +701,67 @@ const fetchHistoricalRoute = useCallback(async () => {
     setLoading(false);
   }
 }, [selectedSurveyor, fromDate, toDate, apiCall]);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ✅ NEW: Fetch cascading filter options
+const fetchCascadingFilters = useCallback(async () => {
+  try {
+    // Fetch cities and projects for cascading filters
+    const citiesResponse = await apiCall('/api/surveyors/cities');
+    const projectsResponse = await apiCall('/api/surveyors/projects');
+    
+    setCities(citiesResponse);
+    setProjects(projectsResponse);
+    
+    console.log('Cascading filter options:', { cities: citiesResponse, projects: projectsResponse });
+  } catch (error) {
+    console.error('Failed to fetch cascading filter options:', error);
+  }
+}, [apiCall]);
+
+// ✅ NEW: Fetch projects by city for cascading filters
+const fetchProjectsByCity = useCallback(async (city) => {
+  try {
+    const response = await apiCall(`/api/filters/cities/${city}/projects`);
+    return response;
+  } catch (error) {
+    console.error(`Failed to fetch projects for city ${city}:`, error);
+    return [];
+  }
+}, [apiCall]);
+
+// ✅ NEW: Fetch cities by project for cascading filters
+const fetchCitiesByProject = useCallback(async (project) => {
+  try {
+    const response = await apiCall(`/api/filters/projects/${project}/cities`);
+    return response;
+  } catch (error) {
+    console.error(`Failed to fetch cities for project ${project}:`, error);
+    return [];
+  }
+}, [apiCall]);
+
+// Load cascading filter options on component mount
+useEffect(() => {
+  fetchCascadingFilters();
+}, [fetchCascadingFilters]);
+
+
 
 
 
@@ -755,54 +880,65 @@ const fetchHistoricalRoute = useCallback(async () => {
         zIndex: 200,
         flexShrink: 0,
       }}>
-        {/* Filter by City */}
-        <div style={{ minWidth: '150px', background: 'linear-gradient(135deg, #e0f7fa 0%, #f0f4ff 100%)', borderRadius: '10px', boxShadow: '0 4px 16px rgba(6,182,212,0.10)', border: '1.5px solid #06b6d4', transition: 'box-shadow 0.2s, border 0.2s' }}>
-          <select
-            value={city}
-            onChange={e => setCity(e.target.value)}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: '1.5px solid #e5e7eb',
-              width: '100%',
-              fontSize: '1.05rem',
-              background: '#ffffff',
-              cursor: 'pointer',
-              fontWeight: 500,
-            }}
-          >
-            <option value="">Filter by City</option>
-            {dynamicConfig.getDropdownOptions('cities').map(cityOption => (
-              <option key={cityOption} value={cityOption}>
-                {cityOption}
-              </option>
-            ))}
-          </select>
-        </div>
-        {/* Filter by Project */}
-        <div style={{ minWidth: '150px', background: 'linear-gradient(135deg, #e0ffe0 0%, #f0f4ff 100%)', borderRadius: '10px', boxShadow: '0 4px 16px rgba(16,185,129,0.10)', border: '1.5px solid #10b981', transition: 'box-shadow 0.2s, border 0.2s' }}>
-          <select
-            value={project}
-            onChange={e => setProject(e.target.value)}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: '1.5px solid #e5e7eb',
-              width: '100%',
-              fontSize: '1.05rem',
-              background: '#ffffff',
-              cursor: 'pointer',
-              fontWeight: 500,
-            }}
-          >
-            <option value="">Filter by Project</option>
-            {dynamicConfig.getDropdownOptions('projects').map(projectOption => (
-              <option key={projectOption} value={projectOption}>
-                {projectOption}
-              </option>
-            ))}
-          </select>
-        </div>
+
+
+
+
+{/* Filter by City */}
+<div style={{ minWidth: '150px', background: 'linear-gradient(135deg, #e0f7fa 0%, #f0f4ff 100%)', borderRadius: '10px', boxShadow: '0 4px 16px rgba(6,182,212,0.10)', border: '1.5px solid #06b6d4', transition: 'box-shadow 0.2s, border 0.2s' }}>
+  <select
+    value={city}
+    onChange={handleCityChange}
+    style={{
+      padding: '0.5rem 1rem',
+      borderRadius: '8px',
+      border: '1.5px solid #e5e7eb',
+      width: '100%',
+      fontSize: '1.05rem',
+      background: '#ffffff',
+      cursor: 'pointer',
+      fontWeight: 500,
+    }}
+  >
+    <option value="">Filter by City</option>
+    {[...new Set(surveyors.map(s => s.city).filter(Boolean))].map(cityOption => (
+      <option key={cityOption} value={cityOption}>
+        {cityOption}
+      </option>
+    ))}
+  </select>
+</div>
+
+{/* Filter by Project */}
+<div style={{ minWidth: '150px', background: 'linear-gradient(135deg, #e0ffe0 0%, #f0f4ff 100%)', borderRadius: '10px', boxShadow: '0 4px 16px rgba(16,185,129,0.10)', border: '1.5px solid #10b981', transition: 'box-shadow 0.2s, border 0.2s' }}>
+  <select
+    value={project}
+    onChange={handleProjectChange}
+    style={{
+      padding: '0.5rem 1rem',
+      borderRadius: '8px',
+      border: '1.5px solid #e5e7eb',
+      width: '100%',
+      fontSize: '1.05rem',
+      background: '#ffffff',
+      cursor: 'pointer',
+      fontWeight: 500,
+    }}
+  >
+    <option value="">Filter by Project</option>
+    {[...new Set(surveyors.map(s => s.projectName).filter(Boolean))].map(projectOption => (
+      <option key={projectOption} value={projectOption}>
+        {projectOption}
+      </option>
+    ))}
+  </select>
+</div>
+
+
+
+
+
+
         {/* Tracking Surveyor */}
         <div style={{ minWidth: '220px', background: 'linear-gradient(135deg, #f0f4ff 0%, #e0f7fa 100%)', borderRadius: '10px', boxShadow: '0 4px 16px rgba(59,130,246,0.10)', border: '1.5px solid #3b82f6', transition: 'box-shadow 0.2s, border 0.2s' }}>
           <select
@@ -997,6 +1133,7 @@ const fetchHistoricalRoute = useCallback(async () => {
         >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
 
@@ -1021,11 +1158,14 @@ const fetchHistoricalRoute = useCallback(async () => {
           )}
 
           {/* ❌ REMOVED: No lines for live tracking - only moving pin */}
-
-          {/* 🔵 Blue Route - Full Route Line (Historical) */}
-          {historicalRoute.length > 1&& (
-            <OSRMRoute coordinates={historicalRoute.map(point => [point.lat, point.lng])} color="#3b82f6" />
-          )}
+           
+           {/* 🔵 Blue Route - Exact Path Line (Historical) */}
+{historicalRoute.length > 1 && (
+  <OSRMRoute 
+    coordinates={historicalRoute.map(point => [point.lat, point.lng])} 
+    color="#3b82f6"
+  />
+)}
 
           {/* 🟢 Start Marker - First Point */}
           {historicalRoute.length > 0&& (

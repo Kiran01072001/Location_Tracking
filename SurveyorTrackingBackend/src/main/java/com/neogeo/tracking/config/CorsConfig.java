@@ -44,6 +44,7 @@ public class CorsConfig implements WebMvcConfigurer {
             "http://183.82.114.29:3001",
              "http://183.82.114.29:9511",
               "http://183.82.114.29:9503",
+              "http://183.82.114.29:9512",
             // File protocol
             "file://"
         };
